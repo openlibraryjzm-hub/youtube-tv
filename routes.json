@@ -1,0 +1,6 @@
+{
+"/playlists": "/playlists",
+"/lastChronologicalPositions": "/lastChronologicalPositions",
+"/lastActiveFilters": "/lastActiveFilters",
+"/progress*": "/progress$1"
+}

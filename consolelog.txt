@@ -1,0 +1,513 @@
+Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+content-script.js:22 Document already loaded, running initialization immediately
+content-script.js:4 Attempting to initialize AdUnit
+content-script.js:6 AdUnit initialized successfully
+2page.jsx:163 🎬 currentVideoIndex changed to: -1
+page.jsx:783 🎯 Initializing sortable system...
+page.jsx:784 🔧 jQuery version: 3.6.0
+page.jsx:785 🔧 jQuery UI version: 1.13.2
+page.jsx:786 🔧 Sortable available: function
+page.jsx:799 📺 Trying to find grid with video thumbnails...
+page.jsx:801 📺 Video grid found: null
+page.jsx:802 📺 Video thumbnails found: NodeList(0)
+page.jsx:907 ❌ Video grid not found
+page.jsx:912 📌 Pin container found: <div class=​"flex items-center gap-1 relative mt-1 pt-1 border-t border-white/​10 ui-sortable">​</div>​flex
+page.jsx:983 ✅ Pin sortable initialized
+page.jsx:2635 Cannot initialize player: missing video ID, YouTube API, or player container
+initializePlayer @ page.jsx:2635
+page.jsx:2043 📋 No playlists need fetching
+hot-reloader-client.js:187 [Fast Refresh] rebuilding
+hot-reloader-client.js:44 [Fast Refresh] done in 17ms
+page.jsx:422 📱 Video progress loaded from localStorage
+page.jsx:500 🚫 Skipping auto-video selection - initialVideoLoaded: false playlists.length: 0
+page.jsx:467 Initial load: setting playlistTabs from Firebase
+page.jsx:467 Initial load: setting playlistTabs from Firebase
+page.jsx:661 💾 Video progress saved to localStorage
+page.jsx:534 🎬 AUTO-SELECTING VIDEO FROM HISTORY: Elden Ring - Morgott, The True King (Prime Morgott) at index: 6
+page.jsx:168 🎬 setCurrentVideoIndex called: 6 reason: history auto-selection
+page.jsx:163 🎬 currentVideoIndex changed to: 6
+page.jsx:783 🎯 Initializing sortable system...
+page.jsx:784 🔧 jQuery version: 3.6.0
+page.jsx:785 🔧 jQuery UI version: 1.13.2
+page.jsx:786 🔧 Sortable available: function
+page.jsx:799 📺 Trying to find grid with video thumbnails...
+page.jsx:801 📺 Video grid found: null
+page.jsx:802 📺 Video thumbnails found: NodeList []
+page.jsx:907 ❌ Video grid not found
+page.jsx:912 📌 Pin container found: <div class=​"flex items-center gap-1 relative mt-1 pt-1 border-t border-white/​10 ui-sortable">​</div>​flex
+page.jsx:983 ✅ Pin sortable initialized
+www-widgetapi.js:194 Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://www.youtube.com') does not match the recipient window's origin ('http://localhost:3000').
+n.sendMessage @ www-widgetapi.js:194
+Eb @ www-widgetapi.js:190
+n.T @ www-widgetapi.js:189
+setInterval
+Ab @ www-widgetapi.js:191
+X @ www-widgetapi.js:181
+initializePlayer @ page.jsx:2640
+eval @ page.jsx:2667
+commitHookEffectListMount @ react-dom.development.js:21102
+commitHookPassiveMountEffects @ react-dom.development.js:23154
+commitPassiveMountOnFiber @ react-dom.development.js:23259
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23267
+commitPassiveMountEffects @ react-dom.development.js:23225
+flushPassiveEffectsImpl @ react-dom.development.js:26497
+flushPassiveEffects @ react-dom.development.js:26438
+eval @ react-dom.development.js:26172
+workLoop @ scheduler.development.js:256
+flushWork @ scheduler.development.js:225
+performWorkUntilDeadline @ scheduler.development.js:534
+page.jsx:2043 📋 No playlists need fetching
+page.jsx:3527 🎬 Opening video grid menu - current video: jGRIK2l1r6s current playlist: 12
+page.jsx:3528 🎬 Before opening - currentVideoIndex: 6
+page.jsx:1373 🔄 setVideoFilterSafe: changing from all to all for playlist 12
+page.jsx:1399 ✅ Using existing shuffle order for all with key: all
+page.jsx:3532 🎬 After opening - currentVideoIndex: 6
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: chronological
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: chronological
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1876 🎲 Generating new shuffle order for current view
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:783 🎯 Initializing sortable system...
+page.jsx:784 🔧 jQuery version: 3.6.0
+page.jsx:785 🔧 jQuery UI version: 1.13.2
+page.jsx:786 🔧 Sortable available: function
+page.jsx:801 📺 Video grid found: <div class=​"grid grid-cols-1 md:​grid-cols-2 lg:​grid-cols-3 gap-4 ui-sortable">​…​</div>​grid
+page.jsx:802 📺 Video thumbnails found: NodeList(12) [div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer.ring-2.ring-blue-500.…, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer]
+page.jsx:856 🎯 Found 12 video thumbnails for click handler
+page.jsx:887 ✅ Video sortable initialized
+page.jsx:912 📌 Pin container found: <div class=​"flex items-center gap-1 relative mt-1 pt-1 border-t border-white/​10 ui-sortable">​</div>​flex
+page.jsx:983 ✅ Pin sortable initialized
+page.jsx:892 🧪 Test element found: 1
+page.jsx:894 🧪 Test element classes: relative group video-thumbnail transition-all duration-200 cursor-pointer ui-sortable-handle
+page.jsx:895 🧪 Test element data: {sortableItem: V.<…>.<computed>, videoId: '6wHl2NOFiww'}
+page.jsx:899 🧪 Attached events: {remove: Array(2), click: Array(1)}
+page.jsx:902 🧪 Testing manual click...
+page.jsx:859 🖱️ Thumbnail clicked! <div class=​"relative group video-thumbnail transition-all duration-200 cursor-pointer ring-2 ring-blue-500 rounded-lg" data-video-id=​"6wHl2NOFiww">​…​</div>​
+page.jsx:860 🖱️ isDragging: false
+page.jsx:861 🖱️ target classes: relative group video-thumbnail transition-all duration-200 cursor-pointer ui-sortable-handle
+page.jsx:862 🖱️ closest button: 0
+page.jsx:870 🎬 Playing video: 6wHl2NOFiww
+page.jsx:877 ✅ Found video at index: 10
+page.jsx:1335 🎬 selectVideoFromMenu called with videoIndex: 10 playlistId: PLyZI3qCmOZ9tmr8qd8ftwxHw_EiMdYmg9_yellow_converted_1759569673975
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:500 🚫 Skipping auto-video selection - initialVideoLoaded: true playlists.length: 18
+page.jsx:163 🎬 currentVideoIndex changed to: 10
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+www-widgetapi.js:194 Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://www.youtube.com') does not match the recipient window's origin ('http://localhost:3000').
+n.sendMessage @ www-widgetapi.js:194
+Eb @ www-widgetapi.js:190
+n.T @ www-widgetapi.js:189
+setInterval
+Ab @ www-widgetapi.js:191
+X @ www-widgetapi.js:181
+initializePlayer @ page.jsx:2640
+eval @ page.jsx:2667
+commitHookEffectListMount @ react-dom.development.js:21102
+commitHookPassiveMountEffects @ react-dom.development.js:23154
+commitPassiveMountOnFiber @ react-dom.development.js:23259
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23256
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23370
+recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
+commitPassiveMountOnFiber @ react-dom.development.js:23267
+commitPassiveMountEffects @ react-dom.development.js:23225
+flushPassiveEffectsImpl @ react-dom.development.js:26497
+flushPassiveEffects @ react-dom.development.js:26438
+eval @ react-dom.development.js:26172
+workLoop @ scheduler.development.js:256
+flushWork @ scheduler.development.js:225
+performWorkUntilDeadline @ scheduler.development.js:534
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:500 🚫 Skipping auto-video selection - initialVideoLoaded: true playlists.length: 18
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1373 🔄 setVideoFilterSafe: changing from all to search for playlist 12
+page.jsx:1388 🎲 Generating new shuffle order for search using key: search playlist: WL - Yellow
+page.jsx:1390 🎲 Generated shuffle order: [] ... (first 5 indices)
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1876 🎲 Generating new shuffle order for current view
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1373 🔄 setVideoFilterSafe: changing from search to all for playlist 12
+page.jsx:1399 ✅ Using existing shuffle order for all with key: all
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1373 🔄 setVideoFilterSafe: changing from all to search for playlist 12
+page.jsx:1388 🎲 Generating new shuffle order for search using key: search playlist: WL - Yellow
+page.jsx:1390 🎲 Generated shuffle order: [] ... (first 5 indices)
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1876 🎲 Generating new shuffle order for current view
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:661 💾 Video progress saved to localStorage
+page.jsx:1373 🔄 setVideoFilterSafe: changing from search to all for playlist 12
+page.jsx:1399 ✅ Using existing shuffle order for all with key: all
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1373 🔄 setVideoFilterSafe: changing from all to search for playlist 12
+page.jsx:1388 🎲 Generating new shuffle order for search using key: search playlist: WL - Yellow
+page.jsx:1390 🎲 Generated shuffle order: [] ... (first 5 indices)
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1876 🎲 Generating new shuffle order for current view
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:661 💾 Video progress saved to localStorage
+page.jsx:1373 🔄 setVideoFilterSafe: changing from search to all for playlist 12
+page.jsx:1399 ✅ Using existing shuffle order for all with key: all
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1373 🔄 setVideoFilterSafe: changing from all to search for playlist 12
+page.jsx:1388 🎲 Generating new shuffle order for search using key: search playlist: WL - Yellow
+page.jsx:1390 🎲 Generated shuffle order: [] ... (first 5 indices)
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1876 🎲 Generating new shuffle order for current view
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
+page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:661 💾 Video progress saved to localStorage
+page.jsx:1373 🔄 setVideoFilterSafe: changing from search to all for playlist 12
+page.jsx:1399 ✅ Using existing shuffle order for all with key: all
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:661 💾 Video progress saved to localStorage
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
+page.jsx:1846 📋 All filter: showing 12 videos
+page.jsx:1912 📋 getSideMenuVideos returning 12 videos
+page.jsx:661 💾 Video progress saved to localStorage

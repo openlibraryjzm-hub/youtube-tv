@@ -1,0 +1,189 @@
+{
+  "playlists": [
+    {
+      "name": "Meme Songs",
+      "id": "PLV2ewAgCPCq0DVamOw2sQSAVdFVjA6x78",
+      "videos": [],
+      "savedShuffles": {},
+      "groups": {
+        "red": {
+          "name": "Red",
+          "videos": []
+        },
+        "green": {
+          "name": "Green",
+          "videos": []
+        },
+        "pink": {
+          "name": "Pink",
+          "videos": []
+        },
+        "yellow": {
+          "name": "Yellow",
+          "videos": []
+        }
+      },
+      "starred": []
+    },
+    {
+      "name": "Game List",
+      "id": "PLyZI3qCmOZ9uamxj6bd3P5oEkmXbu8-RT",
+      "videos": [],
+      "savedShuffles": {},
+      "groups": {
+        "red": {
+          "name": "Red",
+          "videos": []
+        },
+        "green": {
+          "name": "Green",
+          "videos": []
+        },
+        "pink": {
+          "name": "Pink",
+          "videos": []
+        },
+        "yellow": {
+          "name": "Yellow",
+          "videos": []
+        }
+      },
+      "starred": []
+    },
+    {
+      "name": "Minecraft",
+      "id": "PLyZI3qCmOZ9tWQIohuuMHJZjruHkDs5gE",
+      "videos": [],
+      "savedShuffles": {},
+      "groups": {
+        "red": {
+          "name": "Red",
+          "videos": []
+        },
+        "green": {
+          "name": "Green",
+          "videos": []
+        },
+        "pink": {
+          "name": "Pink",
+          "videos": []
+        },
+        "yellow": {
+          "name": "Yellow",
+          "videos": []
+        }
+      },
+      "starred": []
+    },
+    {
+      "name": "Gameplay",
+      "id": "PLyZI3qCmOZ9sju_zQ0fcc8ND-qIJEB9Ce",
+      "videos": [],
+      "savedShuffles": {},
+      "groups": {
+        "red": {
+          "name": "Red",
+          "videos": []
+        },
+        "green": {
+          "name": "Green",
+          "videos": []
+        },
+        "pink": {
+          "name": "Pink",
+          "videos": []
+        },
+        "yellow": {
+          "name": "Yellow",
+          "videos": []
+        }
+      },
+      "starred": []
+    },
+    {
+      "name": "TF2",
+      "id": "PLyZI3qCmOZ9umIkxOGjUMiDLxGtsn6so7",
+      "videos": [],
+      "savedShuffles": {},
+      "groups": {
+        "red": {
+          "name": "Red",
+          "videos": []
+        },
+        "green": {
+          "name": "Green",
+          "videos": []
+        },
+        "pink": {
+          "name": "Pink",
+          "videos": []
+        },
+        "yellow": {
+          "name": "Yellow",
+          "videos": []
+        }
+      },
+      "starred": []
+    },
+    {
+      "name": "Documentary",
+      "id": "PLyZI3qCmOZ9tUvdotGRyiKWdFEkkD2xQu",
+      "videos": [],
+      "savedShuffles": {},
+      "groups": {
+        "red": {
+          "name": "Red",
+          "videos": []
+        },
+        "green": {
+          "name": "Green",
+          "videos": []
+        },
+        "pink": {
+          "name": "Pink",
+          "videos": []
+        },
+        "yellow": {
+          "name": "Yellow",
+          "videos": []
+        }
+      },
+      "starred": []
+    }
+  ],
+  "lastChronologicalPositions": {
+    "PLyZI3qCmOZ9uamxj6bd3P5oEkmXbu8-RT": {
+      "all": 1,
+      "pink": 4,
+      "yellow": 5
+    },
+    "PLV2ewAgCPCq0DVamOw2sQSAVdFVjA6x78": {
+      "all": 1,
+      "pink": 1,
+      "yellow": 2,
+      "red": 0,
+      "green": 1
+    },
+    "PLyZI3qCmOZ9tWQIohuuMHJZjruHkDs5gE": {
+      "all": 1
+    },
+    "PLyZI3qCmOZ9sju_zQ0fcc8ND-qIJEB9Ce": {
+      "all": 3
+    },
+    "PLyZI3qCmOZ9umIkxOGjUMiDLxGtsn6so7": {
+      "all": 0
+    },
+    "PLyZI3qCmOZ9tUvdotGRyiKWdFEkkD2xQu": {
+      "all": 0
+    }
+  },
+  "lastActiveFilters": {
+    "PLyZI3qCmOZ9uamxj6bd3P5oEkmXbu8-RT": "all",
+    "PLV2ewAgCPCq0DVamOw2sQSAVdFVjA6x78": "all",
+    "PLyZI3qCmOZ9tWQIohuuMHJZjruHkDs5gE": "all",
+    "PLyZI3qCmOZ9sju_zQ0fcc8ND-qIJEB9Ce": "all",
+    "PLyZI3qCmOZ9umIkxOGjUMiDLxGtsn6so7": "all",
+    "PLyZI3qCmOZ9tUvdotGRyiKWdFEkkD2xQu": "all"
+  },
+  "progress": []
+}
