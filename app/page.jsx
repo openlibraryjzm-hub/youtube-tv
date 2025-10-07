@@ -1735,7 +1735,7 @@ export default function YouTubePlaylistPlayer() {
               <div className="mb-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
                 <h3 className="text-lg font-semibold text-blue-400 mb-2">Welcome to YouTube TV!</h3>
                 <p className="text-white/80 text-sm">
-                  To get started, you'll need to provide your own API keys. This ensures your data stays private and you have full control over your usage quotas.
+                  To get started, you&apos;ll need to provide your own API keys. This ensures your data stays private and you have full control over your usage quotas.
                 </p>
               </div>
 
@@ -2157,7 +2157,7 @@ export default function YouTubePlaylistPlayer() {
                   <div className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center p-4">
                     <div className="bg-gray-900 rounded-lg p-6 max-w-4xl w-full max-h-[80vh] overflow-y-auto">
                         <div className="flex justify-between items-center mb-4">
-                           <h2 className="text-xl font-bold text-white">Add Playlist to "{playlistTabs[viewingPlaylistTab].name}"</h2>
+                           <h2 className="text-xl font-bold text-white">Add Playlist to &quot;{playlistTabs[viewingPlaylistTab].name}&quot;</h2>
                            <button onClick={() => setShowAddPlaylistModal(false)} className="p-2 rounded-full hover:bg-white/10"><X size={20} /></button>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -2456,7 +2456,7 @@ export default function YouTubePlaylistPlayer() {
         <div className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center p-4">
           <div className="bg-gray-900 rounded-lg p-6 max-w-2xl w-full">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-white">{sendToPlaylistAction === 'move' ? 'Move' : 'Copy'} "{sendToPlaylistVideo.title}" to Playlist</h2>
+              <h2 className="text-xl font-bold text-white">{sendToPlaylistAction === 'move' ? 'Move' : 'Copy'} &quot;{sendToPlaylistVideo.title}&quot; to Playlist</h2>
               <button onClick={() => setShowSendToPlaylistModal(false)} className="p-2 rounded-full hover:bg-white/10"><X size={20} /></button>
             </div>
             <p className="text-white/70 mb-4">
@@ -2703,7 +2703,7 @@ export default function YouTubePlaylistPlayer() {
         <div className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center p-4">
           <div className="bg-gray-900 rounded-lg p-6 max-w-2xl w-full">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-white">Merge "{mergeColoredFolder.name}" into Playlist</h2>
+              <h2 className="text-xl font-bold text-white">Merge &quot;{mergeColoredFolder.name}&quot; into Playlist</h2>
               <button onClick={() => setShowMergeColoredFolderModal(false)} className="p-2 rounded-full hover:bg-white/10"><X size={20} /></button>
             </div>
             <p className="text-white/70 mb-4">Select a playlist to merge the colored folder contents into. Duplicates will be automatically skipped.</p>
