@@ -43,6 +43,14 @@ const defaultApiKey = "AIzaSyBYPwv0a-rRbTrvMA9nF4Wa1ryC0b6l7xw";
 
 // Get stored configuration or return defaults
 const getStoredConfig = () => {
+  // Check if we're in a browser environment
+  if (typeof window === 'undefined') {
+    return {
+      firebaseConfig: defaultFirebaseConfig,
+      apiKey: defaultApiKey
+    };
+  }
+  
   try {
     const stored = localStorage.getItem(CONFIG_STORAGE_KEY);
     if (stored) {
@@ -63,6 +71,11 @@ const getStoredConfig = () => {
 
 // Store configuration
 const storeConfig = (firebaseConfig, apiKey) => {
+  // Check if we're in a browser environment
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  
   try {
     const config = { firebaseConfig, apiKey };
     localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
@@ -73,16 +86,8 @@ const storeConfig = (firebaseConfig, apiKey) => {
   }
 };
 
-// Get initial configuration
-const initialConfig = getStoredConfig();
-
-// Only initialize Firebase if we have stored config (not first visit)
+// Firebase will be initialized inside the component
 let app, db, auth;
-if (localStorage.getItem(CONFIG_STORAGE_KEY)) {
-  app = initializeApp(initialConfig.firebaseConfig);
-  db = getFirestore(app);
-  auth = getAuth(app);
-}
 
 // Optional: Emulator support for local testing
 if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_FIREBASE_EMULATOR === "true" && app) {
@@ -259,8 +264,8 @@ export default function YouTubePlaylistPlayer() {
   });
   const [configError, setConfigError] = useState('');
   const [isConfigValidating, setIsConfigValidating] = useState(false);
-  const [currentApiKey, setCurrentApiKey] = useState(initialConfig.apiKey);
-  const [isFirebaseInitialized, setIsFirebaseInitialized] = useState(!!app);
+  const [currentApiKey, setCurrentApiKey] = useState(defaultApiKey);
+  const [isFirebaseInitialized, setIsFirebaseInitialized] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
 
   const initialVideoLoaded = useRef(false);
@@ -430,12 +435,26 @@ export default function YouTubePlaylistPlayer() {
     }
   };
 
-  // Check if configuration exists on app load
+  // Check if configuration exists on app load and initialize Firebase
   useEffect(() => {
     const stored = localStorage.getItem(CONFIG_STORAGE_KEY);
     if (!stored) {
       setShowConfigModal(true);
       setIsFirebaseInitialized(false);
+    } else {
+      // Initialize Firebase with stored config
+      try {
+        const config = JSON.parse(stored);
+        app = initializeApp(config.firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+        setCurrentApiKey(config.apiKey);
+        setIsFirebaseInitialized(true);
+      } catch (error) {
+        console.error('Error initializing Firebase:', error);
+        setShowConfigModal(true);
+        setIsFirebaseInitialized(false);
+      }
     }
   }, []);
 
