@@ -1,7 +1,7 @@
 # Migration Plan: Next.js/Firebase → Desktop App/Local Database
 
 **Last Updated:** 2025-01-06  
-**Version:** 1.0  
+**Version:** 2.0  
 **Status:** Planning Phase  
 **Priority:** Critical - App-Breaking Change
 
@@ -20,8 +20,8 @@
   - Cloud dependency
 
 ### Target Architecture
-- **Platform:** Desktop application (Electron or Tauri)
-- **Database:** Local database (SQLite or IndexedDB)
+- **Platform:** Desktop application (Electron)
+- **Database:** Local SQLite database
 - **Deployment:** Installable desktop app
 - **Benefits:**
   - No document size limits
@@ -30,6 +30,7 @@
   - No cloud dependency
   - Faster (local access)
   - Privacy (data stays local)
+  - Simple installation (Discord-level simplicity)
 
 ## Migration Goals
 
@@ -44,109 +45,255 @@
 9. **User Customization** - Users can modify/add their own channels beyond defaults
 10. **Completely Free** - No costs, no subscriptions, open source
 
-## Technology Choices
+## Technology Stack
 
-### Desktop Framework Options
-
-#### Option A: Electron (Recommended)
-**Pros:**
-- Mature ecosystem
-- Large community
-- Easy React integration
+### Desktop Framework: Electron
+**Why Electron:**
+- Mature ecosystem with large community
+- Easy React integration (can reuse existing code)
 - Cross-platform (Windows, Mac, Linux)
-- Can reuse Next.js code with modifications
+- Simple build and distribution
+- Well-documented
 
-**Cons:**
-- Larger bundle size (~100MB+)
-- Higher memory usage
-- Slower startup
+**Bundle Size:** ~100MB+ (acceptable for desktop app)
 
-**Best For:** Quick migration, maximum compatibility
-
-#### Option B: Tauri
-**Pros:**
-- Smaller bundle size (~5-10MB)
-- Lower memory usage
-- Faster performance
-- Better security model
-- Native feel
-
-**Cons:**
-- Newer technology
-- Smaller community
-- More setup required
-- Requires Rust knowledge for advanced features
-
-**Best For:** Performance-focused, modern approach
-
-**Recommendation:** Start with **Electron** for faster migration, can migrate to Tauri later if needed.
-
-### Database Options
-
-#### Option A: SQLite (Recommended)
-**Pros:**
+### Database: SQLite
+**Why SQLite:**
 - Mature, battle-tested
 - Full SQL support
 - Excellent performance
 - No size limits (practical)
 - Easy migrations
-- Good tooling
+- Single file database (easy backup)
+- No server required
 
-**Cons:**
-- Requires SQL knowledge
-- More setup than IndexedDB
+## Installation & User Experience
 
-**Best For:** Complex queries, relationships, migrations
+### Installation Process (Discord-Level Simplicity)
 
-#### Option B: IndexedDB
-**Pros:**
-- Browser-native (if using Electron)
-- NoSQL-like (similar to Firestore)
-- Already familiar pattern
-- Works in browser context
+**Target:** Installation should be as simple as Discord:
+1. Download installer (Windows: `.exe`, Mac: `.dmg`, Linux: `.AppImage`)
+2. Double-click installer
+3. Follow simple wizard (optional: choose install location)
+4. App launches automatically
+5. **First Launch:** User ID generated automatically, database initialized with defaults
+6. Ready to use immediately
 
-**Cons:**
-- More complex API
-- Limited query capabilities
-- No SQL
-- Harder migrations
+**No Complex Setup:**
+- No manual database configuration
+- No API key entry required (unless user wants to add their own)
+- No account creation
+- No internet required after installation
+- Works completely offline
 
-**Recommendation:** **SQLite** - Better for long-term, easier migrations, more powerful.
+### User ID & Database Initialization
 
-## Migration Strategy
+**On First Launch:**
+1. Generate persistent user ID (UUID v4)
+2. Store user ID in local config file
+3. Initialize local SQLite database
+4. Create user record with generated ID
+5. **Pre-load 100s of default universal channels** (see Default Channels section)
+6. User can immediately start using the app
 
-### Phase 1: Preparation (Week 1)
+**User ID Storage:**
+- **Windows:** `%APPDATA%/youtube-tv/user-config.json`
+- **Mac:** `~/Library/Application Support/youtube-tv/user-config.json`
+- **Linux:** `~/.config/youtube-tv/user-config.json`
+- **Content:** `{ "userId": "uuid-here", "createdAt": "timestamp" }`
 
-#### 1.1 Create Migration Branch
-```bash
-git checkout -b migration/desktop-app
+**Database Location:**
+- **Windows:** `%APPDATA%/youtube-tv/youtube-tv.db`
+- **Mac:** `~/Library/Application Support/youtube-tv/youtube-tv.db`
+- **Linux:** `~/.config/youtube-tv/youtube-tv.db`
+- Single SQLite file, portable, can be backed up easily
+
+### Default Universal Channels (100s Pre-Loaded)
+
+**Requirements:**
+- **100s of default channels** pre-loaded for every new user
+- Channels are **universal** (same for everyone)
+- Users can **modify** default channels (rename, hide, reorganize)
+- Users can **add their own** channels beyond defaults
+- Default channels serve as starting point/curated content
+
+**Default Channels Data Structure:**
+```javascript
+// Structure matches the JSON file format
+const defaultChannels = {
+  version: "1.0.0",
+  lastUpdated: "2025-01-06",
+  channels: [
+    {
+      id: "PLrAXtmRdnEQy6nuLMH7Fby8lE0s8j2kZ1",
+      name: "Popular Music",
+      type: "playlist",
+      category: "Music",
+      description: "Curated popular music playlist"
+    }
+    // ... 100s more channels
+  ]
+};
 ```
 
-#### 1.2 Set Up Desktop Framework
-- Install Electron (or Tauri)
+**Default Channels Management:**
+- Stored in app bundle as JSON file: `default-channels.json`
+- Loaded into database on first launch
+- Users can:
+  - Hide default channels (soft delete)
+  - Rename default channels
+  - Add videos to default channels
+  - Create new channels beyond defaults
+  - Import/export their custom channels
+
+## What You Need to Provide
+
+### 1. Default Channels List (REQUIRED) ⭐
+
+**Format:** JSON file with list of YouTube playlist/channel IDs
+
+**File:** `default-channels.json` (to be created in project root)
+
+**Structure:**
+```json
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-01-06",
+  "channels": [
+    {
+      "id": "PLrAXtmRdnEQy6nuLMH7Fby8lE0s8j2kZ1",
+      "name": "Popular Music",
+      "type": "playlist",
+      "category": "Music",
+      "description": "Curated popular music playlist"
+    },
+    {
+      "id": "UCXuqSBlHAE6Xw-yeJA0Tunw",
+      "name": "Tech Channel",
+      "type": "channel",
+      "category": "Technology",
+      "description": "Technology news and reviews"
+    }
+  ]
+}
+```
+
+**What to Include:**
+- [ ] List of 100+ YouTube playlist IDs or channel IDs
+- [ ] Names for each channel/playlist
+- [ ] Optional: Categories (Music, Tech, Gaming, etc.)
+- [ ] Optional: Descriptions
+- [ ] Optional: Thumbnail URLs (or let app fetch them)
+
+**How to Provide:**
+- Create `default-channels.json` file in project root
+- Or provide as spreadsheet/CSV that I can convert
+- Or provide as list and I'll create the JSON structure
+
+**Note:** The `type` field should be either `"playlist"` (for playlist IDs starting with `PL`) or `"channel"` (for channel IDs starting with `UC`).
+
+### 2. YouTube API Key Decision (REQUIRED) ⭐
+
+**Current Status:** App uses YouTube Data API v3 for fetching video metadata
+
+**Options:**
+
+**Option A: Embed API Key (Simplest for Users)**
+- You provide API key, embed in app
+- Users don't need to enter anything
+- **Pro:** Seamless experience
+- **Con:** API quota shared across all users (may hit limits with many users)
+
+**Option B: User-Entered API Key (Recommended)**
+- Users enter their own API key on first launch (optional)
+- App works without API key (just slower metadata fetching)
+- **Pro:** No quota limits per user, users get free 10,000 units/day
+- **Con:** Slightly more setup (but still simple - one text field)
+
+**Option C: Hybrid**
+- Use embedded API key for default channel metadata
+- Users can add their own API key for custom channels
+- **Pro:** Best of both worlds
+- **Con:** More complex implementation
+
+**Recommendation:** **Option B** - Let users optionally add their own API key for unlimited usage, but app works without it (just slower metadata fetching). This keeps it free and simple.
+
+**What I Need:**
+- [ ] Decision: Option A, B, or C?
+- [ ] If Option A: Your YouTube API key (keep it secure, I'll handle embedding)
+- [ ] If Option B or C: I'll add simple API key entry UI
+
+### 3. Platform Priorities (REQUIRED) ⭐
+
+**Which platforms should I build installers for?**
+
+- [ ] Windows (.exe installer) - **Required?**
+- [ ] macOS (.dmg installer) - **Required?**
+- [ ] Linux (.AppImage or .deb) - **Required?**
+
+**Recommendation:** Start with Windows, add Mac/Linux as needed.
+
+### 4. App Branding Assets (OPTIONAL)
+
+**For Installer/App:**
+- [ ] App icon (`.ico` for Windows, `.icns` for Mac)
+- [ ] App name (default: "YouTube TV" or your preferred name)
+- [ ] Company/Publisher name (for code signing)
+- [ ] App description for stores/installers
+
+**If Not Provided:**
+- I'll use generic icons and default branding
+- Can be updated later
+
+### 5. Distribution Method (OPTIONAL)
+
+**How should users download the app?**
+
+- [ ] GitHub Releases (free, recommended) - Easy, automatic updates possible
+- [ ] Direct download from website
+- [ ] App stores (Windows Store, Mac App Store - requires accounts/costs)
+
+**Recommendation:** GitHub Releases - Free, easy, automatic updates possible
+
+### 6. Default Channel Organization (OPTIONAL)
+
+**If you want default channels organized:**
+- [ ] Category structure (Music, Gaming, Tech, etc.)
+- [ ] Tab organization for defaults
+- [ ] Featured/default tab setup
+
+**If Not Provided:**
+- I'll organize defaults in a single "Default Channels" tab
+- Users can reorganize as they wish
+
+## Implementation Plan
+
+### Phase 1: Setup & Preparation (Week 1)
+
+#### 1.1 Set Up Electron
+- Install Electron
 - Create basic desktop app structure
 - Set up build system
 - Test basic window/app lifecycle
 
-#### 1.3 Set Up Local Database
-- Install SQLite (or IndexedDB wrapper)
+#### 1.2 Set Up SQLite
+- Install SQLite (better-sqlite3)
 - Create database schema matching Firestore structure
 - Set up database connection/initialization
 - Create migration utilities
 
-#### 1.4 Create Data Migration Scripts
-- Export current Firestore data
-- Convert Firestore format to local DB format
-- Import script for existing users
-- Test migration with sample data
+#### 1.3 Create Default Channels System
+- Create `default-channels.json` structure (using your provided list)
+- Implement default channel loading logic
+- Test with sample default channels
 
 ### Phase 2: Core Migration (Week 2-3)
 
-#### 2.1 Replace Firebase with Local DB
+#### 2.1 Replace Firebase with SQLite
 **Files to Modify:**
 - `app/page.jsx` - Replace all Firestore calls
-- Firebase initialization → Local DB initialization
-- `onSnapshot` → Local DB change listeners
+- Firebase initialization → SQLite initialization
+- `onSnapshot` → SQLite change listeners
 - `updateDoc` → SQLite UPDATE queries
 - `getDocs` → SQLite SELECT queries
 - `writeBatch` → SQLite transactions
@@ -193,34 +340,29 @@ git checkout -b migration/desktop-app
 - Optimize save operations
 - Test with large datasets
 
-### Phase 4: Testing & Polish (Week 5)
+### Phase 4: Installation & Distribution (Week 5)
 
-#### 4.1 Comprehensive Testing
-- Test all user flows
-- Test with large playlists (1000+ videos)
+#### 4.1 Create Installers
+- Set up Electron Builder
+- Create Windows installer (.exe)
+- Create Mac installer (.dmg)
+- Create Linux installer (.AppImage or .deb)
+
+#### 4.2 User ID & Database Initialization
+- Implement user ID generation
+- Implement database initialization
+- Implement default channel loading
+- Test first launch flow
+
+#### 4.3 Testing & Polish
+- Test installation on clean systems
+- Test first launch experience
 - Test offline functionality
 - Test data persistence
-- Test migrations
 
-#### 4.2 Documentation Updates
-- Update MASTER-CONTEXT.md
-- Update CODE-STRUCTURE.md
-- Update DATA-FLOW.md
-- Update PATTERNS.md
-- Update GOTCHAS.md
-- Create MIGRATION-GUIDE.md for users
+## Database Schema
 
-#### 4.3 Build & Distribution
-- Set up build process
-- Create installers (Windows, Mac, Linux)
-- Test installation process
-- Create distribution package
-
-## Detailed Implementation Plan
-
-### Database Schema Design
-
-#### Main User Data Table
+### Main User Data Table
 ```sql
 CREATE TABLE users (
   user_id TEXT PRIMARY KEY,
@@ -232,7 +374,26 @@ CREATE TABLE users (
 );
 ```
 
-#### Video Metadata Table
+### Playlists Table (Normalized)
+```sql
+CREATE TABLE playlists (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  playlist_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  videos TEXT, -- JSON array of video IDs
+  groups TEXT, -- JSON object of colored folders
+  is_default INTEGER DEFAULT 0,
+  can_delete INTEGER DEFAULT 1,
+  category TEXT,
+  description TEXT,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP,
+  UNIQUE(user_id, playlist_id)
+);
+```
+
+### Video Metadata Table
 ```sql
 CREATE TABLE video_metadata (
   user_id TEXT,
@@ -247,7 +408,7 @@ CREATE TABLE video_metadata (
 );
 ```
 
-#### Watch History Table
+### Watch History Table
 ```sql
 CREATE TABLE watch_history (
   user_id TEXT,
@@ -262,30 +423,40 @@ CREATE TABLE watch_history (
 );
 ```
 
-### Code Changes Required
+## Code Changes Required
 
-#### 1. Remove Firebase Imports
+### 1. Remove Firebase Imports
 ```javascript
 // REMOVE:
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 
 // ADD:
-import Database from 'better-sqlite3'; // or similar
+import Database from 'better-sqlite3';
+import { app } from 'electron';
+import path from 'path';
 ```
 
-#### 2. Replace Firebase Initialization
+### 2. Replace Firebase Initialization
 ```javascript
 // OLD:
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // NEW:
-const db = new Database('youtube-tv.db');
+const userDataPath = app.getPath('userData');
+const dbPath = path.join(userDataPath, 'youtube-tv.db');
+const db = new Database(dbPath);
+
 // Initialize schema
+db.exec(`
+  CREATE TABLE IF NOT EXISTS users (...);
+  CREATE TABLE IF NOT EXISTS playlists (...);
+  -- etc.
+`);
 ```
 
-#### 3. Replace onSnapshot
+### 3. Replace onSnapshot
 ```javascript
 // OLD:
 onSnapshot(userDocRef, (snapshot) => {
@@ -294,14 +465,11 @@ onSnapshot(userDocRef, (snapshot) => {
 });
 
 // NEW:
-// Polling or event-based updates
-setInterval(() => {
-  const data = db.prepare('SELECT * FROM users WHERE user_id = ?').get(userId);
-  // Process data
-}, 1000); // Or use better event system
+// Use React state updates directly (no real-time sync needed for local DB)
+// Or implement file watcher if needed
 ```
 
-#### 4. Replace Save Operations
+### 4. Replace Save Operations
 ```javascript
 // OLD:
 await updateDoc(userDocRef, {
@@ -310,327 +478,20 @@ await updateDoc(userDocRef, {
 });
 
 // NEW:
-const stmt = db.prepare('UPDATE users SET playlists = ?, playlist_tabs = ?, updated_at = ? WHERE user_id = ?');
-stmt.run(JSON.stringify(optimizedPlaylists), JSON.stringify(tabsToSave), Date.now(), userId);
+const stmt = db.prepare(`
+  UPDATE users 
+  SET playlists = ?, playlist_tabs = ?, updated_at = ? 
+  WHERE user_id = ?
+`);
+stmt.run(
+  JSON.stringify(optimizedPlaylists),
+  JSON.stringify(tabsToSave),
+  Date.now(),
+  userId
+);
 ```
 
-### Data Migration Strategy
-
-#### For Existing Users
-1. **Export Script:**
-   - Connect to Firebase
-   - Export all user data
-   - Convert to SQLite format
-   - Save to local database
-
-2. **Import on First Launch:**
-   - Check if user has Firebase data
-   - Prompt to import
-   - Run migration script
-   - Verify data integrity
-
-#### For New Users
-- Start fresh with local database
-- No migration needed
-
-## Risk Assessment
-
-### High Risk Areas
-
-1. **Data Loss During Migration**
-   - **Mitigation:** Comprehensive backup, test migrations thoroughly
-   - **Rollback:** Keep Firebase connection available during transition
-
-2. **Breaking Changes**
-   - **Mitigation:** Extensive testing, feature parity checklist
-   - **Rollback:** Git version control, easy revert
-
-3. **Performance Issues**
-   - **Mitigation:** Optimize queries, add indexes, test with large datasets
-   - **Rollback:** Profile and optimize iteratively
-
-4. **User Experience Disruption**
-   - **Mitigation:** Maintain same UI/UX, seamless transition
-   - **Rollback:** Keep old version available
-
-### Medium Risk Areas
-
-1. **Database Corruption**
-   - **Mitigation:** Regular backups, transaction safety
-   - **Rollback:** Restore from backup
-
-2. **Cross-Platform Compatibility**
-   - **Mitigation:** Test on all platforms
-   - **Rollback:** Platform-specific fixes
-
-## Testing Strategy
-
-### Unit Tests
-- Database operations
-- Data conversion functions
-- Migration scripts
-
-### Integration Tests
-- Save/load cycles
-- Data persistence
-- State management
-
-### End-to-End Tests
-- Complete user flows
-- Large dataset handling
-- Offline functionality
-
-### Performance Tests
-- Query performance
-- Save operation speed
-- Memory usage
-- Startup time
-
-## Rollback Plan
-
-### If Migration Fails
-
-1. **Immediate Rollback:**
-   - Revert to Firebase version
-   - Restore from backup
-   - Notify users
-
-2. **Partial Rollback:**
-   - Keep local DB for new features
-   - Maintain Firebase for critical data
-   - Gradual migration
-
-3. **Data Recovery:**
-   - Export from local DB
-   - Convert back to Firebase format
-   - Restore to Firebase
-
-## Timeline Estimate
-
-- **Phase 1 (Preparation):** 1 week
-- **Phase 2 (Core Migration):** 2-3 weeks
-- **Phase 3 (Feature Parity):** 1 week
-- **Phase 4 (Testing & Polish):** 1 week
-
-**Total:** 5-6 weeks for complete migration
-
-## Success Criteria
-
-- [ ] All features work identically
-- [ ] No data loss during migration
-- [ ] Performance equal or better
-- [ ] Works completely offline
-- [ ] No Firebase dependencies
-- [ ] Documentation updated
-- [ ] User migration path available
-- [ ] Build system working
-- [ ] Installers created
-
-## Installation & User Experience Requirements
-
-### Installation Process (Discord-Level Simplicity)
-
-**Target:** Installation should be as simple as Discord:
-1. Download installer (Windows: `.exe`, Mac: `.dmg`, Linux: `.AppImage` or `.deb`)
-2. Double-click installer
-3. Follow simple wizard (optional: choose install location)
-4. App launches automatically
-5. **First Launch:** User ID generated automatically, database initialized with defaults
-6. Ready to use immediately
-
-**No Complex Setup:**
-- No manual database configuration
-- No API key entry required (unless user wants to add their own)
-- No account creation
-- No internet required after installation
-- Works completely offline
-
-### User ID & Database Initialization
-
-**On First Launch:**
-1. Generate persistent user ID (UUID v4 or similar)
-2. Store user ID in local config file
-3. Initialize local SQLite database
-4. Create user record with generated ID
-5. **Pre-load 100s of default universal channels** (see Default Channels section)
-6. User can immediately start using the app
-
-**User ID Storage:**
-- Location: `%APPDATA%/youtube-tv/user-config.json` (Windows)
-- Location: `~/Library/Application Support/youtube-tv/user-config.json` (Mac)
-- Location: `~/.config/youtube-tv/user-config.json` (Linux)
-- Contains: `{ "userId": "uuid-here", "createdAt": "timestamp" }`
-
-**Database Location:**
-- Location: `%APPDATA%/youtube-tv/youtube-tv.db` (Windows)
-- Location: `~/Library/Application Support/youtube-tv/youtube-tv.db` (Mac)
-- Location: `~/.config/youtube-tv/youtube-tv.db` (Linux)
-- Single SQLite file, portable, can be backed up easily
-
-### Default Universal Channels (100s Pre-Loaded)
-
-**Requirements:**
-- **100s of default channels** pre-loaded for every new user
-- Channels are **universal** (same for everyone)
-- Users can **modify** default channels (rename, delete, reorganize)
-- Users can **add their own** channels beyond defaults
-- Default channels serve as starting point/curated content
-
-**Default Channels Data Structure:**
-```javascript
-// Example default channels (you'll provide the full list)
-// Note: Structure matches the JSON file format with 'channels' property
-const defaultChannels = {
-  version: "1.0.0",
-  lastUpdated: "2025-01-06",
-  channels: [
-    {
-      id: "PLrAXtmRdnEQy6nuLMH7Fby8lE0s8j2kZ1",
-      name: "Popular Music",
-      type: "playlist",
-      category: "Music",
-      description: "Curated popular music playlist",
-      videos: [], // Will be fetched on first use or can be pre-populated
-      groups: createDefaultGroups(),
-      isDefault: true, // Flag to identify default channels
-      canDelete: false, // Users can't delete defaults, but can hide them
-    },
-    // ... 100s more channels
-  ]
-};
-```
-
-**Default Channels Management:**
-- Stored in app bundle as JSON file: `default-channels.json`
-- Loaded into database on first launch
-- Users can:
-  - Hide default channels (soft delete)
-  - Rename default channels
-  - Add videos to default channels
-  - Create new channels beyond defaults
-  - Import/export their custom channels
-
-## What You Need to Provide
-
-### 1. Default Channels List (REQUIRED)
-
-**Format:** JSON file with list of YouTube playlist/channel IDs
-
-**File:** `default-channels.json` (to be created)
-
-**Structure:**
-```json
-{
-  "version": "1.0.0",
-  "lastUpdated": "2025-01-06",
-  "channels": [
-    {
-      "id": "PLrAXtmRdnEQy6nuLMH7Fby8lE0s8j2kZ1",
-      "name": "Popular Music",
-      "type": "playlist",
-      "category": "Music",
-      "description": "Curated popular music playlist"
-    },
-    {
-      "id": "UCXuqSBlHAE6Xw-yeJA0Tunw",
-      "name": "Tech Channel",
-      "type": "channel",
-      "category": "Technology",
-      "description": "Technology news and reviews"
-    }
-  ]
-}
-  ]
-}
-```
-
-**What to Include:**
-- [ ] List of 100+ YouTube playlist IDs or channel IDs
-- [ ] Names for each channel/playlist
-- [ ] Optional: Categories (Music, Tech, Gaming, etc.)
-- [ ] Optional: Descriptions
-- [ ] Optional: Thumbnail URLs or let app fetch them
-
-**How to Provide:**
-- Create `default-channels.json` file in project root
-- Or provide as spreadsheet/CSV that I can convert
-- Or provide as list and I'll create the JSON structure
-
-### 2. YouTube API Key (OPTIONAL - For Initial Setup)
-
-**Current Status:** App uses YouTube Data API v3 for fetching video metadata
-
-**Options:**
-- **Option A:** You provide API key, embed in app (users don't need to enter)
-  - Pro: Seamless experience
-  - Con: API quota shared across all users (may hit limits)
-  
-- **Option B:** Users enter their own API key on first launch (optional)
-  - Pro: No quota limits per user
-  - Con: Slightly more setup (but still simple)
-  
-- **Option C:** Hybrid - Use API key for default channel metadata, users add their own for custom channels
-  - Pro: Best of both worlds
-  - Con: More complex
-
-**Recommendation:** Option B or C - Let users optionally add their own API key for unlimited usage, but app works without it (just slower metadata fetching)
-
-**What I Need:**
-- [ ] Decision: Embed API key or user-entered?
-- [ ] If embedding: Your YouTube API key (keep it secure)
-- [ ] If user-entered: I'll add simple API key entry UI
-
-### 3. App Branding Assets (OPTIONAL)
-
-**For Installer/App:**
-- [ ] App icon (`.ico` for Windows, `.icns` for Mac)
-- [ ] App name (default: "YouTube TV" or your preferred name)
-- [ ] Company/Publisher name (for code signing)
-- [ ] App description for stores/installers
-
-**If Not Provided:**
-- I'll use generic icons and default branding
-- Can be updated later
-
-### 4. Build & Distribution Preferences
-
-**Platforms to Support:**
-- [ ] Windows (.exe installer)
-- [ ] macOS (.dmg installer)
-- [ ] Linux (.AppImage or .deb)
-
-**Distribution Method:**
-- [ ] GitHub Releases (free, recommended)
-- [ ] Direct download from website
-- [ ] App stores (Windows Store, Mac App Store - requires accounts/costs)
-
-**Recommendation:** GitHub Releases - Free, easy, automatic updates possible
-
-### 5. Default Channel Categories/Organization (OPTIONAL)
-
-**If you want default channels organized:**
-- [ ] Category structure (Music, Gaming, Tech, etc.)
-- [ ] Tab organization for defaults
-- [ ] Featured/default tab setup
-
-**If Not Provided:**
-- I'll organize defaults in a single "Default Channels" tab
-- Users can reorganize as they wish
-
-## Implementation Details for Default Channels
-
-### Database Schema Addition
-
-```sql
--- Add flag to identify default channels
-ALTER TABLE playlists ADD COLUMN is_default INTEGER DEFAULT 0;
-ALTER TABLE playlists ADD COLUMN can_delete INTEGER DEFAULT 1;
-ALTER TABLE playlists ADD COLUMN category TEXT;
-ALTER TABLE playlists ADD COLUMN description TEXT;
-```
-
-### Default Channels Loading Logic
-
+### 5. Default Channels Loading
 ```javascript
 // On first launch
 async function initializeDefaultChannels(userId) {
@@ -645,8 +506,10 @@ async function initializeDefaultChannels(userId) {
     
     // Insert each default channel
     const insertStmt = db.prepare(`
-      INSERT INTO playlists (user_id, playlist_id, name, videos, is_default, can_delete, category, description)
-      VALUES (?, ?, ?, ?, 1, 0, ?, ?)
+      INSERT INTO playlists (
+        user_id, playlist_id, name, videos, is_default, can_delete, category, description
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
     
     for (const channel of defaultChannels.channels) {
@@ -655,6 +518,8 @@ async function initializeDefaultChannels(userId) {
         channel.id,
         channel.name,
         JSON.stringify([]), // Empty videos array, will be fetched
+        1, // is_default = true
+        0, // can_delete = false
         channel.category || null,
         channel.description || null
       );
@@ -663,7 +528,7 @@ async function initializeDefaultChannels(userId) {
 }
 ```
 
-### User Customization
+## User Customization
 
 **Users Can:**
 - Hide default channels (soft delete, can restore)
@@ -673,13 +538,13 @@ async function initializeDefaultChannels(userId) {
 - Export/import their custom channels
 - Delete custom channels (but not defaults)
 
-## Free & Open Source Requirements
+## Free & Open Source
 
 ### Cost Structure
 - **Development:** Free (open source)
 - **Distribution:** Free (GitHub Releases)
 - **Database:** Free (SQLite, no hosting costs)
-- **API:** Optional (users can use their own free YouTube API key)
+- **API:** Optional (users can use their own free YouTube API key - 10,000 units/day free)
 - **No Subscriptions:** Completely free forever
 
 ### Open Source Considerations
@@ -688,22 +553,61 @@ async function initializeDefaultChannels(userId) {
 - Contributions: Welcome community contributions
 - Documentation: Comprehensive (already have this!)
 
+## Timeline Estimate
+
+- **Phase 1 (Setup):** 1 week
+- **Phase 2 (Core Migration):** 2-3 weeks
+- **Phase 3 (Feature Parity):** 1 week
+- **Phase 4 (Installation & Distribution):** 1 week
+
+**Total:** 5-6 weeks for complete migration
+
+## Success Criteria
+
+- [ ] All features work identically
+- [ ] No data loss during migration
+- [ ] Performance equal or better
+- [ ] Works completely offline
+- [ ] No Firebase dependencies
+- [ ] Simple installation (Discord-level)
+- [ ] Default channels pre-loaded
+- [ ] User ID generation working
+- [ ] Documentation updated
+- [ ] Build system working
+- [ ] Installers created for all target platforms
+
 ## Next Steps
 
-1. **You Provide:**
-   - [ ] Default channels list (100+ playlist/channel IDs) - **REQUIRED**
-   - [ ] Decision on API key approach (embed vs user-entered) - **REQUIRED**
-   - [ ] App branding preferences (optional)
-   - [ ] Platform priorities (Windows/Mac/Linux) - **REQUIRED**
+### What I Need From You:
 
-2. **I Implement:**
-   - [ ] Create default-channels.json structure
-   - [ ] Set up Electron + SQLite
-   - [ ] Create installer system
-   - [ ] Implement default channel loading
-   - [ ] Add user ID generation
-   - [ ] Create simple installation wizard
-   - [ ] Build installers for all platforms
+1. **Default Channels List** (REQUIRED)
+   - [ ] Create `default-channels.json` with 100+ playlist/channel IDs
+   - [ ] Include names, types, categories, descriptions
+
+2. **API Key Decision** (REQUIRED)
+   - [ ] Choose: Option A (embed), B (user-entered), or C (hybrid)
+   - [ ] If Option A: Provide your YouTube API key
+
+3. **Platform Priorities** (REQUIRED)
+   - [ ] Which platforms: Windows, Mac, Linux?
+
+4. **App Branding** (OPTIONAL)
+   - [ ] App icon, name, description
+
+5. **Distribution Method** (OPTIONAL)
+   - [ ] GitHub Releases, website, or app stores?
+
+### What I'll Do:
+
+- [ ] Set up Electron + SQLite
+- [ ] Create database schema
+- [ ] Implement default channel loading
+- [ ] Replace Firebase with SQLite
+- [ ] Create installer system
+- [ ] Implement user ID generation
+- [ ] Create installers for all platforms
+- [ ] Update all documentation
+- [ ] Test everything thoroughly
 
 ## Related Documentation
 
@@ -714,6 +618,6 @@ async function initializeDefaultChannels(userId) {
 
 ---
 
-**Status:** Ready for implementation planning  
-**Next Action:** Create proof of concept with Electron + SQLite
+**Status:** Ready for your input  
+**Next Action:** Waiting for default channels list and decisions on API key approach and platforms
 
