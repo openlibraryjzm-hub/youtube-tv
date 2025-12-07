@@ -35,10 +35,14 @@
 
 1. **Preserve All Functionality** - Every feature must work identically
 2. **Maintain Data Structure** - Keep same data model/logic
-3. **Keep Persistent User ID** - Same user ID system
+3. **Keep Persistent User ID** - Same user ID system (tied to local database)
 4. **Remove Firebase Limits** - No more 1MB document constraints
 5. **Offline-First** - Works completely offline
 6. **Same User Experience** - UI/UX remains identical
+7. **Simple Installation** - As easy as installing Discord (one-click installer)
+8. **Default Channels** - 100s of universal default channels pre-loaded for all users
+9. **User Customization** - Users can modify/add their own channels beyond defaults
+10. **Completely Free** - No costs, no subscriptions, open source
 
 ## Technology Choices
 
@@ -422,14 +426,275 @@ stmt.run(JSON.stringify(optimizedPlaylists), JSON.stringify(tabsToSave), Date.no
 - [ ] Build system working
 - [ ] Installers created
 
+## Installation & User Experience Requirements
+
+### Installation Process (Discord-Level Simplicity)
+
+**Target:** Installation should be as simple as Discord:
+1. Download installer (Windows: `.exe`, Mac: `.dmg`, Linux: `.AppImage` or `.deb`)
+2. Double-click installer
+3. Follow simple wizard (optional: choose install location)
+4. App launches automatically
+5. **First Launch:** User ID generated automatically, database initialized with defaults
+6. Ready to use immediately
+
+**No Complex Setup:**
+- No manual database configuration
+- No API key entry required (unless user wants to add their own)
+- No account creation
+- No internet required after installation
+- Works completely offline
+
+### User ID & Database Initialization
+
+**On First Launch:**
+1. Generate persistent user ID (UUID v4 or similar)
+2. Store user ID in local config file
+3. Initialize local SQLite database
+4. Create user record with generated ID
+5. **Pre-load 100s of default universal channels** (see Default Channels section)
+6. User can immediately start using the app
+
+**User ID Storage:**
+- Location: `%APPDATA%/youtube-tv/user-config.json` (Windows)
+- Location: `~/Library/Application Support/youtube-tv/user-config.json` (Mac)
+- Location: `~/.config/youtube-tv/user-config.json` (Linux)
+- Contains: `{ "userId": "uuid-here", "createdAt": "timestamp" }`
+
+**Database Location:**
+- Location: `%APPDATA%/youtube-tv/youtube-tv.db` (Windows)
+- Location: `~/Library/Application Support/youtube-tv/youtube-tv.db` (Mac)
+- Location: `~/.config/youtube-tv/youtube-tv.db` (Linux)
+- Single SQLite file, portable, can be backed up easily
+
+### Default Universal Channels (100s Pre-Loaded)
+
+**Requirements:**
+- **100s of default channels** pre-loaded for every new user
+- Channels are **universal** (same for everyone)
+- Users can **modify** default channels (rename, delete, reorganize)
+- Users can **add their own** channels beyond defaults
+- Default channels serve as starting point/curated content
+
+**Default Channels Data Structure:**
+```javascript
+// Example default channels (you'll provide the full list)
+const defaultChannels = [
+  {
+    id: "PLrAXtmRdnEQy6nuLMH7Fby8lE0s8j2kZ1",
+    name: "Popular Music",
+    videos: [], // Will be fetched on first use or can be pre-populated
+    groups: createDefaultGroups(),
+    isDefault: true, // Flag to identify default channels
+    canDelete: false, // Users can't delete defaults, but can hide them
+  },
+  // ... 100s more channels
+];
+```
+
+**Default Channels Management:**
+- Stored in app bundle as JSON file: `default-channels.json`
+- Loaded into database on first launch
+- Users can:
+  - Hide default channels (soft delete)
+  - Rename default channels
+  - Add videos to default channels
+  - Create new channels beyond defaults
+  - Import/export their custom channels
+
+## What You Need to Provide
+
+### 1. Default Channels List (REQUIRED)
+
+**Format:** JSON file with list of YouTube playlist/channel IDs
+
+**File:** `default-channels.json` (to be created)
+
+**Structure:**
+```json
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-01-06",
+  "channels": [
+    {
+      "id": "PLrAXtmRdnEQy6nuLMH7Fby8lE0s8j2kZ1",
+      "name": "Popular Music",
+      "type": "playlist",
+      "category": "Music",
+      "description": "Curated popular music playlist"
+    },
+    {
+      "id": "UCXuqSBlHAE6Xw-yeJA0Tunw",
+      "name": "Tech Channel",
+      "type": "channel",
+      "category": "Technology",
+      "description": "Technology news and reviews"
+    }
+    // ... 100s more entries
+  ]
+}
+```
+
+**What to Include:**
+- [ ] List of 100+ YouTube playlist IDs or channel IDs
+- [ ] Names for each channel/playlist
+- [ ] Optional: Categories (Music, Tech, Gaming, etc.)
+- [ ] Optional: Descriptions
+- [ ] Optional: Thumbnail URLs or let app fetch them
+
+**How to Provide:**
+- Create `default-channels.json` file in project root
+- Or provide as spreadsheet/CSV that I can convert
+- Or provide as list and I'll create the JSON structure
+
+### 2. YouTube API Key (OPTIONAL - For Initial Setup)
+
+**Current Status:** App uses YouTube Data API v3 for fetching video metadata
+
+**Options:**
+- **Option A:** You provide API key, embed in app (users don't need to enter)
+  - Pro: Seamless experience
+  - Con: API quota shared across all users (may hit limits)
+  
+- **Option B:** Users enter their own API key on first launch (optional)
+  - Pro: No quota limits per user
+  - Con: Slightly more setup (but still simple)
+  
+- **Option C:** Hybrid - Use API key for default channel metadata, users add their own for custom channels
+  - Pro: Best of both worlds
+  - Con: More complex
+
+**Recommendation:** Option B or C - Let users optionally add their own API key for unlimited usage, but app works without it (just slower metadata fetching)
+
+**What I Need:**
+- [ ] Decision: Embed API key or user-entered?
+- [ ] If embedding: Your YouTube API key (keep it secure)
+- [ ] If user-entered: I'll add simple API key entry UI
+
+### 3. App Branding Assets (OPTIONAL)
+
+**For Installer/App:**
+- [ ] App icon (`.ico` for Windows, `.icns` for Mac)
+- [ ] App name (default: "YouTube TV" or your preferred name)
+- [ ] Company/Publisher name (for code signing)
+- [ ] App description for stores/installers
+
+**If Not Provided:**
+- I'll use generic icons and default branding
+- Can be updated later
+
+### 4. Build & Distribution Preferences
+
+**Platforms to Support:**
+- [ ] Windows (.exe installer)
+- [ ] macOS (.dmg installer)
+- [ ] Linux (.AppImage or .deb)
+
+**Distribution Method:**
+- [ ] GitHub Releases (free, recommended)
+- [ ] Direct download from website
+- [ ] App stores (Windows Store, Mac App Store - requires accounts/costs)
+
+**Recommendation:** GitHub Releases - Free, easy, automatic updates possible
+
+### 5. Default Channel Categories/Organization (OPTIONAL)
+
+**If you want default channels organized:**
+- [ ] Category structure (Music, Gaming, Tech, etc.)
+- [ ] Tab organization for defaults
+- [ ] Featured/default tab setup
+
+**If Not Provided:**
+- I'll organize defaults in a single "Default Channels" tab
+- Users can reorganize as they wish
+
+## Implementation Details for Default Channels
+
+### Database Schema Addition
+
+```sql
+-- Add flag to identify default channels
+ALTER TABLE playlists ADD COLUMN is_default INTEGER DEFAULT 0;
+ALTER TABLE playlists ADD COLUMN can_delete INTEGER DEFAULT 1;
+ALTER TABLE playlists ADD COLUMN category TEXT;
+ALTER TABLE playlists ADD COLUMN description TEXT;
+```
+
+### Default Channels Loading Logic
+
+```javascript
+// On first launch
+async function initializeDefaultChannels(userId) {
+  // Check if defaults already loaded
+  const hasDefaults = db.prepare(
+    'SELECT COUNT(*) as count FROM playlists WHERE user_id = ? AND is_default = 1'
+  ).get(userId);
+  
+  if (hasDefaults.count === 0) {
+    // Load default-channels.json
+    const defaultChannels = require('./default-channels.json');
+    
+    // Insert each default channel
+    const insertStmt = db.prepare(`
+      INSERT INTO playlists (user_id, playlist_id, name, videos, is_default, can_delete, category, description)
+      VALUES (?, ?, ?, ?, 1, 0, ?, ?)
+    `);
+    
+    for (const channel of defaultChannels.channels) {
+      insertStmt.run(
+        userId,
+        channel.id,
+        channel.name,
+        JSON.stringify([]), // Empty videos array, will be fetched
+        channel.category || null,
+        channel.description || null
+      );
+    }
+  }
+}
+```
+
+### User Customization
+
+**Users Can:**
+- Hide default channels (soft delete, can restore)
+- Rename default channels
+- Add videos to default channels
+- Create unlimited custom channels
+- Export/import their custom channels
+- Delete custom channels (but not defaults)
+
+## Free & Open Source Requirements
+
+### Cost Structure
+- **Development:** Free (open source)
+- **Distribution:** Free (GitHub Releases)
+- **Database:** Free (SQLite, no hosting costs)
+- **API:** Optional (users can use their own free YouTube API key)
+- **No Subscriptions:** Completely free forever
+
+### Open Source Considerations
+- License: MIT or similar permissive license
+- Repository: Public GitHub repo
+- Contributions: Welcome community contributions
+- Documentation: Comprehensive (already have this!)
+
 ## Next Steps
 
-1. **Decide on Framework:** Electron vs Tauri
-2. **Decide on Database:** SQLite vs IndexedDB
-3. **Create Proof of Concept:** Basic desktop app with local DB
-4. **Test Migration:** Small dataset first
-5. **Plan Detailed Implementation:** Week-by-week breakdown
-6. **Begin Migration:** Start with Phase 1
+1. **You Provide:**
+   - [ ] Default channels list (100+ playlist/channel IDs) - **REQUIRED**
+   - [ ] Decision on API key approach (embed vs user-entered) - **REQUIRED**
+   - [ ] App branding preferences (optional)
+   - [ ] Platform priorities (Windows/Mac/Linux) - **REQUIRED**
+
+2. **I Implement:**
+   - [ ] Create default-channels.json structure
+   - [ ] Set up Electron + SQLite
+   - [ ] Create installer system
+   - [ ] Implement default channel loading
+   - [ ] Add user ID generation
+   - [ ] Create simple installation wizard
+   - [ ] Build installers for all platforms
 
 ## Related Documentation
 
