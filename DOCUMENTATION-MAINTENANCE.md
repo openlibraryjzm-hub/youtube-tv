@@ -68,7 +68,7 @@ When making code changes, check:
 ### Step 1: Make Code Changes
 - Write code
 - Test functionality
-- Commit code changes
+- **MANDATORY: Commit and push with prompt** (see GIT-COMMIT-PROTOCOL.md)
 
 ### Step 2: Identify Documentation Impact
 - Review checklist above
@@ -87,9 +87,10 @@ When making code changes, check:
 - Ensure links still work
 
 ### Step 5: Commit Documentation
+- **MANDATORY: Commit with user prompt** (see GIT-COMMIT-PROTOCOL.md)
 - Commit documentation with code (or in same PR)
-- Use descriptive commit messages
-- Reference issue/PR numbers
+- Use format: `[AI] User Request: "[prompt]"` with changes listed
+- Push to GitHub immediately
 
 ## Documentation Update Templates
 
@@ -348,6 +349,7 @@ When an AI agent makes code changes, it should:
 
 **After ANY code change, check:**
 
+- [ ] **MANDATORY: Commit and push with prompt** → See GIT-COMMIT-PROTOCOL.md
 - [ ] Does this add/modify functions? → Update CODE-STRUCTURE.md
 - [ ] Does this add/modify state? → Update STATE-MANAGEMENT.md
 - [ ] Does this create new pattern? → Update PATTERNS.md

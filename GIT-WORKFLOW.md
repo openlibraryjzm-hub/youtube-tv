@@ -4,10 +4,13 @@
 
 ## 🎯 What You Want
 
-1. **Session Checkpoints** - Save state after each AI conversation/work session
-2. **Quick Reversal** - Go back to previous working state if something breaks
-3. **Keep Last 5** - Only keep 5 recent session checkpoints
-4. **Major/Minor Versions** - Tag important milestones
+1. **Automatic Commits** - Every code change committed with prompt tracking (see GIT-COMMIT-PROTOCOL.md)
+2. **Session Checkpoints** - Save state after each AI conversation/work session
+3. **Quick Reversal** - Go back to previous working state if something breaks
+4. **Keep Last 5** - Only keep 5 recent session checkpoints
+5. **Major/Minor Versions** - Tag important milestones
+
+> **🤖 AI Agent Note:** See [GIT-COMMIT-PROTOCOL.md](./GIT-COMMIT-PROTOCOL.md) for MANDATORY automatic commit system with prompt tracking. Every code change must be committed with the user's prompt included.
 
 ## 📚 What is Git? (Simple Explanation)
 

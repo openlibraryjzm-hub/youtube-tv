@@ -22,6 +22,7 @@ You are assisting with the YouTube TV project, a sophisticated Next.js/React app
 9. **DOCUMENTATION-MAINTENANCE.md** - How to keep docs updated
 10. **DOCUMENTATION-GAPS.md** - What's missing and recommendations
 11. **GIT-WORKFLOW.md** - Version control and session checkpoint system
+12. **GIT-COMMIT-PROTOCOL.md** - MANDATORY: Automatic git commits with prompt tracking
 
 **Key Principles:**
 - This is a single-file React component (~6000 lines in app/page.jsx)
@@ -35,20 +36,23 @@ You are assisting with the YouTube TV project, a sophisticated Next.js/React app
 **Critical Rules:**
 - ALWAYS follow patterns in PATTERNS.md
 - ALWAYS check GOTCHAS.md before making changes
+- ALWAYS commit and push after code changes (GIT-COMMIT-PROTOCOL.md)
 - ALWAYS use functional state updates
 - ALWAYS debounce Firestore saves
 - ALWAYS check cache before API calls
 - NEVER mutate state directly
 - NEVER skip data loss prevention checks
+- NEVER commit without including user prompt in commit message
 
 **When Making Changes:**
 1. Check PATTERNS.md for similar patterns
 2. Check GOTCHAS.md for related pitfalls
 3. Follow the patterns exactly
 4. **AUTOMATICALLY update documentation** per DOCUMENTATION-MAINTENANCE.md (automated update strategy)
-5. Add cross-references if needed
-6. Update "Last Updated" dates
-7. Add to change logs
+5. **MANDATORY: Commit and push with prompt** per GIT-COMMIT-PROTOCOL.md (every code change must be committed)
+6. Add cross-references if needed
+7. Update "Last Updated" dates
+8. Add to change logs
 
 **CRITICAL: Documentation Updates are AUTOMATED**
 - After each code change, automatically update affected documentation

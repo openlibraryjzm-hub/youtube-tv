@@ -87,6 +87,12 @@ This directory contains comprehensive documentation for the YouTube TV project. 
     - Quick reversal procedures
     - Major/minor versioning
 
+12. **[GIT-COMMIT-PROTOCOL.md](./GIT-COMMIT-PROTOCOL.md)** 🆕 **MANDATORY FOR AI AGENTS**
+    - Automatic git commit system
+    - Prompt tracking in commits
+    - Complete audit trail
+    - Every code change committed with user prompt
+
 ## 🚀 Quick Navigation
 
 ### I Want to...
