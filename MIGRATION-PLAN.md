@@ -150,47 +150,59 @@ const defaultChannels = {
 
 ### 1. Default Channels List (REQUIRED) ⭐
 
-**Format:** JSON file with list of YouTube playlist/channel IDs
+**Status:** ✅ **Using your current Firebase data as source**
 
-**File:** `default-channels.json` (to be created in project root)
+**What I Need:**
+I need the **YouTube playlist/channel IDs** from your Firebase, not the Firebase structure itself. Specifically:
+- The `id` field from each playlist in your Firebase `playlists` array
+- The `name` field for each playlist
+- These will become the default channels that all new users get
 
-**Structure:**
+**How to Provide:**
+**Option A: Export from Firebase Console (Easiest)**
+1. Go to Firebase Console → Firestore Database
+2. Navigate to your user document: `/users/{yourUserId}`
+3. Copy the `playlists` array (or export the document as JSON)
+4. Send me the JSON - I'll extract the IDs and create `default-channels.json`
+
+**Option B: Export via Script**
+- I can create a script to export playlist IDs from your Firebase
+- You run it and send me the output
+
+**Option C: Manual List**
+- Provide a list of playlist IDs and names
+- I'll create the JSON structure
+
+**What Gets Extracted:**
+From your Firebase playlists, I'll extract:
+- `id` → becomes the playlist/channel ID in default-channels.json
+- `name` → becomes the name in default-channels.json
+- `type` → automatically determined (playlist IDs start with `PL`, channel IDs start with `UC`)
+- `category` → optional, can be added later
+- `description` → optional, can be added later
+
+**Example from your current data:**
 ```json
 {
   "version": "1.0.0",
   "lastUpdated": "2025-01-06",
   "channels": [
     {
-      "id": "PLrAXtmRdnEQy6nuLMH7Fby8lE0s8j2kZ1",
-      "name": "Popular Music",
-      "type": "playlist",
-      "category": "Music",
-      "description": "Curated popular music playlist"
+      "id": "PLV2ewAgCPCq0DVamOw2sQSAVdFVjA6x78",
+      "name": "Meme Songs",
+      "type": "playlist"
     },
     {
-      "id": "UCXuqSBlHAE6Xw-yeJA0Tunw",
-      "name": "Tech Channel",
-      "type": "channel",
-      "category": "Technology",
-      "description": "Technology news and reviews"
+      "id": "PLyZI3qCmOZ9uamxj6bd3P5oEkmXbu8-RT",
+      "name": "Game List",
+      "type": "playlist"
     }
+    // ... all your playlists from Firebase
   ]
 }
 ```
 
-**What to Include:**
-- [ ] List of 100+ YouTube playlist IDs or channel IDs
-- [ ] Names for each channel/playlist
-- [ ] Optional: Categories (Music, Tech, Gaming, etc.)
-- [ ] Optional: Descriptions
-- [ ] Optional: Thumbnail URLs (or let app fetch them)
-
-**How to Provide:**
-- Create `default-channels.json` file in project root
-- Or provide as spreadsheet/CSV that I can convert
-- Or provide as list and I'll create the JSON structure
-
-**Note:** The `type` field should be either `"playlist"` (for playlist IDs starting with `PL`) or `"channel"` (for channel IDs starting with `UC`).
+**Note:** If you have 100s of playlists in Firebase, I'll extract all of them. If you want to curate which ones become defaults, let me know.
 
 ### 2. YouTube API Key Decision (REQUIRED) ⭐
 
@@ -218,42 +230,40 @@ const defaultChannels = {
 
 **Recommendation:** **Option B** - Let users optionally add their own API key for unlimited usage, but app works without it (just slower metadata fetching). This keeps it free and simple.
 
-**What I Need:**
-- [ ] Decision: Option A, B, or C?
-- [ ] If Option A: Your YouTube API key (keep it secure, I'll handle embedding)
-- [ ] If Option B or C: I'll add simple API key entry UI
+**Decision:** ✅ **Option B - User-Entered API Key**
+
+**Implementation:**
+- Users will be prompted to add their own Google/YouTube API key on first launch
+- This will be optional - app works without it (just slower metadata fetching)
+- Simple text input field in settings/first launch
+- API key stored locally in user config
+- I'll implement the UI for API key entry
 
 ### 3. Platform Priorities (REQUIRED) ⭐
 
-**Which platforms should I build installers for?**
+**Decision:** ✅ **Windows is highest and only priority**
 
-- [ ] Windows (.exe installer) - **Required?**
-- [ ] macOS (.dmg installer) - **Required?**
-- [ ] Linux (.AppImage or .deb) - **Required?**
-
-**Recommendation:** Start with Windows, add Mac/Linux as needed.
+**Implementation:**
+- Focus 100% on Windows (.exe installer)
+- Mac/Linux support is bonus for later (not required now)
+- All development and testing will prioritize Windows
+- Installer will be Windows-only initially
 
 ### 4. App Branding Assets (OPTIONAL)
 
-**For Installer/App:**
-- [ ] App icon (`.ico` for Windows, `.icns` for Mac)
-- [ ] App name (default: "YouTube TV" or your preferred name)
-- [ ] Company/Publisher name (for code signing)
-- [ ] App description for stores/installers
+**Status:** ⏸️ **Doesn't matter right now**
 
-**If Not Provided:**
-- I'll use generic icons and default branding
-- Can be updated later
+**Implementation:**
+- I'll use generic icons and default branding ("YouTube TV")
+- Can be updated later when you're ready
 
 ### 5. Distribution Method (OPTIONAL)
 
-**How should users download the app?**
+**Status:** ⏸️ **Doesn't matter right now**
 
-- [ ] GitHub Releases (free, recommended) - Easy, automatic updates possible
-- [ ] Direct download from website
-- [ ] App stores (Windows Store, Mac App Store - requires accounts/costs)
-
-**Recommendation:** GitHub Releases - Free, easy, automatic updates possible
+**Implementation:**
+- Will default to GitHub Releases (free, easy)
+- Can be changed later when ready for distribution
 
 ### 6. Default Channel Organization (OPTIONAL)
 
@@ -580,22 +590,29 @@ async function initializeDefaultChannels(userId) {
 
 ### What I Need From You:
 
-1. **Default Channels List** (REQUIRED)
-   - [ ] Create `default-channels.json` with 100+ playlist/channel IDs
-   - [ ] Include names, types, categories, descriptions
+1. **Default Channels List** (REQUIRED) ⭐
+   - [x] **Decision:** Using your current Firebase data as source
+   - [ ] **Action Needed:** Export your Firebase playlists data
+     - Option A: Export from Firebase Console (send me the JSON)
+     - Option B: I create export script (you run it)
+     - Option C: Manual list of playlist IDs and names
+   - I'll extract playlist IDs and create `default-channels.json`
 
-2. **API Key Decision** (REQUIRED)
-   - [ ] Choose: Option A (embed), B (user-entered), or C (hybrid)
-   - [ ] If Option A: Provide your YouTube API key
+2. **API Key Decision** (REQUIRED) ⭐
+   - [x] **Decision:** Option B - User-entered API key
+   - [x] **Implementation:** I'll add API key entry UI
 
-3. **Platform Priorities** (REQUIRED)
-   - [ ] Which platforms: Windows, Mac, Linux?
+3. **Platform Priorities** (REQUIRED) ⭐
+   - [x] **Decision:** Windows only (highest priority)
+   - [x] **Implementation:** Focus 100% on Windows, Mac/Linux later
 
 4. **App Branding** (OPTIONAL)
-   - [ ] App icon, name, description
+   - [x] **Decision:** Doesn't matter right now
+   - [x] **Implementation:** Use generic branding, update later
 
 5. **Distribution Method** (OPTIONAL)
-   - [ ] GitHub Releases, website, or app stores?
+   - [x] **Decision:** Doesn't matter right now
+   - [x] **Implementation:** Default to GitHub Releases
 
 ### What I'll Do:
 
@@ -620,4 +637,3 @@ async function initializeDefaultChannels(userId) {
 
 **Status:** Ready for your input  
 **Next Action:** Waiting for default channels list and decisions on API key approach and platforms
-
