@@ -1,0 +1,147 @@
+After analyzing the code and documentation, I've identified several critical issues causing the thumbnail shuffling problem:
+Core Problems
+1. Conflicting Shuffle Order Systems
+The code maintains THREE separate shuffle order tracking systems that fight each other:
+
+playlistShuffleOrders.current (global, per-playlist/filter)
+shuffleOrders.current (side menu specific)
+activeShuffleOrder state (playback specific)
+
+When you open the video grid, these systems aren't synchronized, causing videos to appear in different orders.
+2. getSideMenuVideos Recalculation Loop
+Despite being wrapped in useMemo, this function:
+
+Has too many dependencies ([videoFilter, sortMode, watchedFilter, currentShuffleOrderIndex, currentVideoId, playlists.length])
+Causes re-renders when any of these change
+The const _ = forceSideMenuUpdate; line forces recalculation whenever colored folders update
+
+3. Race Condition in Video Selection
+When you click the video grid button, this happens:
+javascriptonClick={() => { 
+  setSideMenuPlaylistIndex(currentPlaylistIndex); 
+  setVideoFilterSafe(chronologicalFilter, currentPlaylistIndex); 
+  setSortMode('chronological'); // Added recently
+  setShowSideMenu('videos');
+}}
+The setVideoFilterSafe call triggers shuffle order initialization, which can change currentVideoIndex through side effects before the menu even opens.
+4. Shuffle Order Key Inconsistency
+For 'all' and 'search' filters, the code uses the filter name as the key, but validation checks against video counts don't match:
+javascriptconst shuffleKey = videoFilter; // 'search'
+const expectedVideoCount = videoFilter === 'search' 
+  ? playlist.videos.filter(...).length  // Filtered count
+  : playlist.videos.length;              // Total count
+This causes regeneration of shuffle orders when they shouldn't be regenerated.
+Recommended Fixes
+Fix 1: Eliminate Side Menu Shuffle System
+Remove shuffleOrders.current entirely and use only playlistShuffleOrders.current:
+javascript// In getSideMenuVideos - replace shuffle mode logic:
+} else if (sortMode === 'shuffle') {
+  // Use the SAME shuffle order as playback, don't create separate ones
+  const shuffleKey = videoFilter === 'search' ? 'search' : videoFilter;
+  let baseListIndices = playlistShuffleOrders.current[playlist.id]?.[shuffleKey];
+  
+  if (baseListIndices) {
+    baseVideos = baseListIndices.map(index => playlist.videos[index]).filter(Boolean);
+    // Apply watched filter after shuffle
+    if (watchedFilter !== 'all') {
+      baseVideos = baseVideos.filter(video => {
+        const progress = getVideoProgress(video.id);
+        const duration = video.duration || 1;
+        const isWatched = progress >= duration * 0.95;
+        return watchedFilter === 'watched' ? isWatched : !isWatched;
+      });
+    }
+  }
+}
+Fix 2: Fix Shuffle Order Key Validation
+Use consistent keys and counts:
+javascriptconst getShuffleKeyAndCount = (playlist, filter) => {
+  if (filter === 'all') {
+    return { key: 'all', count: playlist.videos.length };
+  } else if (filter === 'search') {
+    const allGroupedIds = Object.values(playlist.groups || {}).flatMap(g => g.videos || []);
+    return { 
+      key: 'search', 
+      count: playlist.videos.filter(v => !allGroupedIds.includes(v.id)).length 
+    };
+  } else {
+    return { 
+      key: filter, 
+      count: playlist.groups[filter]?.videos.length || 0 
+    };
+  }
+};
+
+// Then use it consistently:
+const { key, count } = getShuffleKeyAndCount(playlist, filter);
+if (!playlistShuffleOrders.current[playlist.id]?.[key] || 
+    playlistShuffleOrders.current[playlist.id][key].length !== count) {
+  // Generate new shuffle order
+}
+Fix 3: Prevent Video Changes on Menu Toggle
+Add a flag to track when we're just opening the menu:
+javascriptconst [isMenuOpening, setIsMenuOpening] = useState(false);
+
+// In the video grid button:
+onClick={() => { 
+  if (showSideMenu === 'videos') {
+    setShowSideMenu(null);
+  } else {
+    setIsMenuOpening(true); // Set flag BEFORE other state changes
+    setSideMenuPlaylistIndex(currentPlaylistIndex); 
+    setVideoFilterSafe(chronologicalFilter, currentPlaylistIndex); 
+    setSortMode('chronological');
+    setShowSideMenu('videos');
+    setTimeout(() => setIsMenuOpening(false), 100); // Clear after state settles
+  }
+}}
+Then in setVideoFilterSafe and related functions, check this flag before changing video:
+javascriptif (!isMenuOpening && shouldChangeVideo) {
+  setCurrentVideoIndex(newIndex);
+}
+Fix 4: Simplify getSideMenuVideos Dependencies
+Remove the dependency on playlists.length and force updates more selectively:
+javascriptconst getSideMenuVideos = useMemo(() => {
+  return (playlist) => {
+    // Only recalculate when the actual filter/sort settings change for THIS playlist
+    // Don't use forceSideMenuUpdate - it causes unnecessary recalculations
+    
+    // ... rest of logic
+  };
+}, [videoFilter, sortMode, watchedFilter, currentVideoId]); 
+// Removed: currentShuffleOrderIndex, playlists.length
+Fix 5: Initialize Shuffle Orders Early and Correctly
+In handleViewPlaylistGrid, ensure shuffle order exists BEFORE opening menu:
+javascriptconst handleViewPlaylistGrid = (index) => { 
+  const playlist = playlists[index];
+  if (!playlist) return;
+  
+  // Initialize BOTH 'all' and 'search' shuffle orders if they don't exist
+  ['all', 'search'].forEach(filter => {
+    const { key, count } = getShuffleKeyAndCount(playlist, filter);
+    if (!playlistShuffleOrders.current[playlist.id]?.[key] || 
+        playlistShuffleOrders.current[playlist.id][key].length !== count) {
+      playlistShuffleOrders.current = {
+        ...playlistShuffleOrders.current,
+        [playlist.id]: {
+          ...(playlistShuffleOrders.current[playlist.id] || {}),
+          [key]: generateNewShuffleOrder(playlist, filter)
+        }
+      };
+    }
+  });
+  
+  setSideMenuPlaylistIndex(index); 
+  setVideoFilterSafe('all', index); 
+  setSortMode('chronological');
+  setShowSideMenu('videos'); 
+};
+Priority Order
+
+Fix 3 (Prevent video changes on menu toggle) - Immediate impact
+Fix 2 (Shuffle order key validation) - Prevents unnecessary regeneration
+Fix 5 (Initialize shuffle orders early) - Ensures consistency
+Fix 1 (Eliminate duplicate shuffle system) - Architectural improvement
+Fix 4 (Simplify dependencies) - Performance optimization
+
+These fixes address the root causes: conflicting state systems, race conditions during menu opening, and inconsistent shuffle order validation.

@@ -1,50 +1,31 @@
-Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
-content-script.js:22 Document already loaded, running initialization immediately
-content-script.js:4 Attempting to initialize AdUnit
-content-script.js:6 AdUnit initialized successfully
-2page.jsx:163 🎬 currentVideoIndex changed to: -1
-page.jsx:783 🎯 Initializing sortable system...
-page.jsx:784 🔧 jQuery version: 3.6.0
-page.jsx:785 🔧 jQuery UI version: 1.13.2
-page.jsx:786 🔧 Sortable available: function
-page.jsx:799 📺 Trying to find grid with video thumbnails...
-page.jsx:801 📺 Video grid found: null
-page.jsx:802 📺 Video thumbnails found: NodeList(0)
-page.jsx:907 ❌ Video grid not found
-page.jsx:912 📌 Pin container found: <div class=​"flex items-center gap-1 relative mt-1 pt-1 border-t border-white/​10 ui-sortable">​</div>​flex
-page.jsx:983 ✅ Pin sortable initialized
-page.jsx:2635 Cannot initialize player: missing video ID, YouTube API, or player container
-initializePlayer @ page.jsx:2635
-page.jsx:2043 📋 No playlists need fetching
-hot-reloader-client.js:187 [Fast Refresh] rebuilding
-hot-reloader-client.js:44 [Fast Refresh] done in 17ms
-page.jsx:422 📱 Video progress loaded from localStorage
-page.jsx:500 🚫 Skipping auto-video selection - initialVideoLoaded: false playlists.length: 0
-page.jsx:467 Initial load: setting playlistTabs from Firebase
-page.jsx:467 Initial load: setting playlistTabs from Firebase
-page.jsx:661 💾 Video progress saved to localStorage
-page.jsx:534 🎬 AUTO-SELECTING VIDEO FROM HISTORY: Elden Ring - Morgott, The True King (Prime Morgott) at index: 6
-page.jsx:168 🎬 setCurrentVideoIndex called: 6 reason: history auto-selection
-page.jsx:163 🎬 currentVideoIndex changed to: 6
-page.jsx:783 🎯 Initializing sortable system...
-page.jsx:784 🔧 jQuery version: 3.6.0
-page.jsx:785 🔧 jQuery UI version: 1.13.2
-page.jsx:786 🔧 Sortable available: function
-page.jsx:799 📺 Trying to find grid with video thumbnails...
-page.jsx:801 📺 Video grid found: null
-page.jsx:802 📺 Video thumbnails found: NodeList []
-page.jsx:907 ❌ Video grid not found
-page.jsx:912 📌 Pin container found: <div class=​"flex items-center gap-1 relative mt-1 pt-1 border-t border-white/​10 ui-sortable">​</div>​flex
-page.jsx:983 ✅ Pin sortable initialized
-www-widgetapi.js:194 Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://www.youtube.com') does not match the recipient window's origin ('http://localhost:3000').
-n.sendMessage @ www-widgetapi.js:194
-Eb @ www-widgetapi.js:190
-n.T @ www-widgetapi.js:189
-setInterval
-Ab @ www-widgetapi.js:191
-X @ www-widgetapi.js:181
-initializePlayer @ page.jsx:2640
-eval @ page.jsx:2667
+ Could not restore 1 video objects for TF2 - video IDs will remain in groups but videos are missing
+eval @ page.jsx:1230
+eval @ page.jsx:1195
+next @ index.esm.js:22183
+eval @ index.esm.js:17935
+setTimeout
+Ou @ index.esm.js:17934
+next @ index.esm.js:17925
+Fa @ index.esm.js:16316
+__PRIVATE_eventManagerOnWatchChange @ index.esm.js:16258
+__PRIVATE_syncEngineEmitNewSnapsAndNotifyLocalStore @ index.esm.js:17311
+await in __PRIVATE_syncEngineEmitNewSnapsAndNotifyLocalStore
+__PRIVATE_syncEngineWrite @ index.esm.js:17050
+await in __PRIVATE_syncEngineWrite
+eval @ index.esm.js:22385
+await in eval
+eval @ index.esm.js:19335
+eval @ index.esm.js:19368
+Promise.then
+cc @ index.esm.js:19368
+enqueue @ index.esm.js:19335
+enqueueAndForget @ index.esm.js:19313
+__PRIVATE_firestoreClientWrite @ index.esm.js:22385
+executeWrite @ index.esm.js:22387
+updateDoc @ index.esm.js:22136
+eval @ page.jsx:1547
+setTimeout
+eval @ page.jsx:1539
 commitHookEffectListMount @ react-dom.development.js:21102
 commitHookPassiveMountEffects @ react-dom.development.js:23154
 commitPassiveMountOnFiber @ react-dom.development.js:23259
@@ -141,373 +122,33 @@ eval @ react-dom.development.js:26172
 workLoop @ scheduler.development.js:256
 flushWork @ scheduler.development.js:225
 performWorkUntilDeadline @ scheduler.development.js:534
-page.jsx:2043 📋 No playlists need fetching
-page.jsx:3527 🎬 Opening video grid menu - current video: jGRIK2l1r6s current playlist: 12
-page.jsx:3528 🎬 Before opening - currentVideoIndex: 6
-page.jsx:1373 🔄 setVideoFilterSafe: changing from all to all for playlist 12
-page.jsx:1399 ✅ Using existing shuffle order for all with key: all
-page.jsx:3532 🎬 After opening - currentVideoIndex: 6
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: chronological
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: chronological
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1876 🎲 Generating new shuffle order for current view
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:783 🎯 Initializing sortable system...
-page.jsx:784 🔧 jQuery version: 3.6.0
-page.jsx:785 🔧 jQuery UI version: 1.13.2
-page.jsx:786 🔧 Sortable available: function
-page.jsx:801 📺 Video grid found: <div class=​"grid grid-cols-1 md:​grid-cols-2 lg:​grid-cols-3 gap-4 ui-sortable">​…​</div>​grid
-page.jsx:802 📺 Video thumbnails found: NodeList(12) [div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer.ring-2.ring-blue-500.…, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer, div.relative.group.video-thumbnail.transition-all.duration-200.cursor-pointer]
-page.jsx:856 🎯 Found 12 video thumbnails for click handler
-page.jsx:887 ✅ Video sortable initialized
-page.jsx:912 📌 Pin container found: <div class=​"flex items-center gap-1 relative mt-1 pt-1 border-t border-white/​10 ui-sortable">​</div>​flex
-page.jsx:983 ✅ Pin sortable initialized
-page.jsx:892 🧪 Test element found: 1
-page.jsx:894 🧪 Test element classes: relative group video-thumbnail transition-all duration-200 cursor-pointer ui-sortable-handle
-page.jsx:895 🧪 Test element data: {sortableItem: V.<…>.<computed>, videoId: '6wHl2NOFiww'}
-page.jsx:899 🧪 Attached events: {remove: Array(2), click: Array(1)}
-page.jsx:902 🧪 Testing manual click...
-page.jsx:859 🖱️ Thumbnail clicked! <div class=​"relative group video-thumbnail transition-all duration-200 cursor-pointer ring-2 ring-blue-500 rounded-lg" data-video-id=​"6wHl2NOFiww">​…​</div>​
-page.jsx:860 🖱️ isDragging: false
-page.jsx:861 🖱️ target classes: relative group video-thumbnail transition-all duration-200 cursor-pointer ui-sortable-handle
-page.jsx:862 🖱️ closest button: 0
-page.jsx:870 🎬 Playing video: 6wHl2NOFiww
-page.jsx:877 ✅ Found video at index: 10
-page.jsx:1335 🎬 selectVideoFromMenu called with videoIndex: 10 playlistId: PLyZI3qCmOZ9tmr8qd8ftwxHw_EiMdYmg9_yellow_converted_1759569673975
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:500 🚫 Skipping auto-video selection - initialVideoLoaded: true playlists.length: 18
-page.jsx:163 🎬 currentVideoIndex changed to: 10
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-www-widgetapi.js:194 Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://www.youtube.com') does not match the recipient window's origin ('http://localhost:3000').
-n.sendMessage @ www-widgetapi.js:194
-Eb @ www-widgetapi.js:190
-n.T @ www-widgetapi.js:189
-setInterval
-Ab @ www-widgetapi.js:191
-X @ www-widgetapi.js:181
-initializePlayer @ page.jsx:2640
-eval @ page.jsx:2667
-commitHookEffectListMount @ react-dom.development.js:21102
-commitHookPassiveMountEffects @ react-dom.development.js:23154
-commitPassiveMountOnFiber @ react-dom.development.js:23259
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23256
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23256
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23256
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23256
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23256
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23256
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23256
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23256
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23256
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23256
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23256
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23256
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23256
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23256
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23256
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23256
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23256
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23256
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23370
-recursivelyTraversePassiveMountEffects @ react-dom.development.js:23237
-commitPassiveMountOnFiber @ react-dom.development.js:23267
-commitPassiveMountEffects @ react-dom.development.js:23225
-flushPassiveEffectsImpl @ react-dom.development.js:26497
-flushPassiveEffects @ react-dom.development.js:26438
-eval @ react-dom.development.js:26172
-workLoop @ scheduler.development.js:256
-flushWork @ scheduler.development.js:225
-performWorkUntilDeadline @ scheduler.development.js:534
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:500 🚫 Skipping auto-video selection - initialVideoLoaded: true playlists.length: 18
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1373 🔄 setVideoFilterSafe: changing from all to search for playlist 12
-page.jsx:1388 🎲 Generating new shuffle order for search using key: search playlist: WL - Yellow
-page.jsx:1390 🎲 Generated shuffle order: [] ... (first 5 indices)
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1876 🎲 Generating new shuffle order for current view
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1373 🔄 setVideoFilterSafe: changing from search to all for playlist 12
-page.jsx:1399 ✅ Using existing shuffle order for all with key: all
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1373 🔄 setVideoFilterSafe: changing from all to search for playlist 12
-page.jsx:1388 🎲 Generating new shuffle order for search using key: search playlist: WL - Yellow
-page.jsx:1390 🎲 Generated shuffle order: [] ... (first 5 indices)
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1876 🎲 Generating new shuffle order for current view
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:661 💾 Video progress saved to localStorage
-page.jsx:1373 🔄 setVideoFilterSafe: changing from search to all for playlist 12
-page.jsx:1399 ✅ Using existing shuffle order for all with key: all
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1373 🔄 setVideoFilterSafe: changing from all to search for playlist 12
-page.jsx:1388 🎲 Generating new shuffle order for search using key: search playlist: WL - Yellow
-page.jsx:1390 🎲 Generated shuffle order: [] ... (first 5 indices)
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1876 🎲 Generating new shuffle order for current view
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:661 💾 Video progress saved to localStorage
-page.jsx:1373 🔄 setVideoFilterSafe: changing from search to all for playlist 12
-page.jsx:1399 ✅ Using existing shuffle order for all with key: all
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1373 🔄 setVideoFilterSafe: changing from all to search for playlist 12
-page.jsx:1388 🎲 Generating new shuffle order for search using key: search playlist: WL - Yellow
-page.jsx:1390 🎲 Generated shuffle order: [] ... (first 5 indices)
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1876 🎲 Generating new shuffle order for current view
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: search sortMode: shuffle
-page.jsx:1834 🔍 Search filter: showing 12 videos (excluding 2 grouped videos)
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:661 💾 Video progress saved to localStorage
-page.jsx:1373 🔄 setVideoFilterSafe: changing from search to all for playlist 12
-page.jsx:1399 ✅ Using existing shuffle order for all with key: all
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:661 💾 Video progress saved to localStorage
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:1824 🎯 getSideMenuVideos called for playlist: WL - Yellow filter: all sortMode: shuffle
-page.jsx:1846 📋 All filter: showing 12 videos
-page.jsx:1912 📋 getSideMenuVideos returning 12 videos
-page.jsx:661 💾 Video progress saved to localStorage
+page.jsx:1408 🔄 Playlists state updated: Meme Songs[blue:0, emerald:0, pink:0, green:0, purple:0, indigo:0, sky:0, teal:0, violet:0, orange:0, yellow:2, cyan:0, amber:0, red:0, rose:0, lime:0] | Game List[purple:0, blue:2, orange:0, emerald:0, rose:0, amber:0, teal:0, indigo:0, pink:0, green:0, cyan:0, sky:0, red:0, violet:0, yellow:2, lime:0] | Gameplay[green:0, purple:0, rose:0, amber:0, teal:0, cyan:0, violet:0, sky:0, lime:0, orange:0, indigo:0, emerald:0, red:0, pink:0, yellow:0, blue:0] | TF2[rose:0, yellow:22, lime:28, orange:33, sky:0, red:97, blue:36, emerald:0, green:20, pink:4, cyan:8, teal:6, purple:7, amber:0, violet:0, indigo:98] | Documentary[red:0, lime:0, cyan:0, green:0, sky:0, pink:0, yellow:0, rose:0, teal:0, amber:0, orange:0, emerald:0, indigo:0, purple:0, blue:0, violet:0] | WL[red:217, teal:0, green:790, purple:0, orange:0, emerald:0, violet:0, lime:0, sky:0, indigo:0, pink:738, yellow:2616, cyan:0, blue:0, amber:0, rose:0] | Souls[0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0, 10:0, 11:0, 12:0, 13:0, 14:0, 15:0, pink:0, yellow:0, emerald:0, rose:0, orange:21, blue:0, sky:0, green:30, purple:0, cyan:0, indigo:0, violet:0, teal:0, amber:0, red:178, lime:0] | Elden Ring Weapon/Spell Mods[green:0, amber:0, violet:0, purple:0, pink:0, emerald:0, rose:0, lime:0, cyan:0, blue:0, yellow:0, sky:0, orange:0, teal:0, indigo:0, red:0] | Elden Ring Boss Mods[rose:0, emerald:0, cyan:0, teal:0, red:0, lime:0, amber:0, orange:0, blue:0, indigo:0, pink:0, green:0, purple:0, violet:0, sky:0, yellow:0] | Elden Ring Misc Mods[emerald:0, cyan:0, sky:0, rose:0, amber:0, indigo:0, red:0, yellow:0, blue:0, violet:0, lime:0, teal:0, purple:0, pink:0, orange:0, green:0] | Elden Ring Custom Battles[sky:0, indigo:0, purple:0, green:0, orange:0, emerald:0, rose:0, pink:0, cyan:0, violet:0, blue:0, amber:0, lime:0, yellow:0, teal:0, red:0] | Elden Ring[orange:0, rose:0, lime:0, emerald:0, amber:0, indigo:0, blue:0, sky:0, cyan:0, green:0, pink:0, red:0, yellow:0, teal:0, violet:0, purple:0] | Soulsborne[green:0, purple:0, lime:0, pink:0, teal:0, cyan:0, violet:0, indigo:0, yellow:0, red:0, orange:0, sky:0, emerald:0, rose:0, blue:0, amber:0] | Dark Souls III[cyan:0, violet:0, sky:0, red:0, teal:0, orange:0, green:0, blue:0, yellow:0, indigo:0, lime:0, pink:0, amber:0, emerald:0, purple:0, rose:0] | Elden Ring: Randomizer Playthrough[orange:0, green:0, blue:0, cyan:0, pink:0, purple:0, rose:0, amber:0, lime:0, indigo:0, emerald:0, sky:0, yellow:0, teal:0, violet:0, red:0] | Elden Ring In-depth Weapon Guide[red:0, violet:0, yellow:0, blue:0, lime:0, rose:0, purple:0, pink:0, indigo:0, teal:0, sky:0, orange:0, emerald:0, green:0, amber:0, cyan:0] | Elden Ring Challenge Runs[cyan:0, blue:0, purple:0, violet:0, green:0, sky:0, red:0, emerald:0, indigo:0, amber:0, teal:0, orange:0, rose:0, pink:0, yellow:0, lime:0] | Unsorted[indigo:0, lime:0, sky:0, violet:0, amber:0, cyan:0, yellow:0, orange:0, green:0, teal:0, rose:0, blue:0, emerald:0, purple:0, red:0, pink:0] | Gaming Stuff[orange:327, violet:0, blue:307, indigo:110, amber:0, teal:0, red:337, purple:161, lime:0, green:377, cyan:212, yellow:276, rose:0, pink:166, sky:0, emerald:0] | Cinema/Goon[sky:0, lime:0, amber:0, rose:0, teal:0, pink:0, red:26, orange:0, green:0, cyan:0, yellow:0, purple:0, indigo:0, emerald:0, blue:0, violet:0] | Minecraft[0:0, 1:0, 2:0, 3:0, 4:0, 5:0, 6:0, 7:0, 8:0, 9:0, 10:0, 11:0, 12:0, 13:0, 14:0, 15:0, purple:0, green:1, indigo:0, pink:0, blue:2, violet:0, orange:4, sky:4, emerald:0, yellow:4, amber:0, red:3, rose:0, lime:0, cyan:0, teal:0] | FPS[indigo:7, rose:0, amber:9, green:2, pink:17, blue:10, cyan:14, teal:0, violet:3, sky:3, lime:17, orange:4, emerald:7, yellow:28, purple:4, red:10] | Indigo[purple:0, violet:0, sky:0, indigo:0, rose:0, cyan:0, pink:0, emerald:0, orange:0, blue:13, amber:0, lime:0, teal:0, red:36, green:9, yellow:0] | Low Quality[teal:0, cyan:0, pink:0, blue:0, yellow:0, violet:0, orange:0, lime:0, green:0, red:10, emerald:0, amber:0, sky:0, purple:0, rose:0, indigo:0]
+page.jsx:1430 ⏱️ Staged save effect triggered (playlists changed, waiting for quiet period...)
+page.jsx:1456 💾 Staged save: Saving playlists to Firestore: (24) [{…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}, {…}]
+page.jsx:1464   📁 Saving Meme Songs (PLV2ewAgCPCq0DVamOw2sQSAVdFVjA6x78): videos=95, groups=[blue: 0, emerald: 0, pink: 0, green: 0, purple: 0, indigo: 0, sky: 0, teal: 0, violet: 0, orange: 0, yellow: 2, cyan: 0, amber: 0, red: 0, rose: 0, lime: 0]
+page.jsx:1464   📁 Saving Game List (PLyZI3qCmOZ9uamxj6bd3P5oEkmXbu8-RT): videos=29, groups=[purple: 0, blue: 2, orange: 0, emerald: 0, rose: 0, amber: 0, teal: 0, indigo: 0, pink: 0, green: 0, cyan: 0, sky: 0, red: 0, violet: 0, yellow: 2, lime: 0]
+page.jsx:1464   📁 Saving Gameplay (PLyZI3qCmOZ9sju_zQ0fcc8ND-qIJEB9Ce): videos=56, groups=[green: 0, purple: 0, rose: 0, amber: 0, teal: 0, cyan: 0, violet: 0, sky: 0, lime: 0, orange: 0, indigo: 0, emerald: 0, red: 0, pink: 0, yellow: 0, blue: 0]
+page.jsx:1464   📁 Saving TF2 (PLyZI3qCmOZ9umIkxOGjUMiDLxGtsn6so7): videos=405, groups=[rose: 0, yellow: 22, lime: 28, orange: 33, sky: 0, red: 97, blue: 36, emerald: 0, green: 20, pink: 4, cyan: 8, teal: 6, purple: 7, amber: 0, violet: 0, indigo: 98]
+page.jsx:1464   📁 Saving Documentary (PLyZI3qCmOZ9tUvdotGRyiKWdFEkkD2xQu): videos=4, groups=[red: 0, lime: 0, cyan: 0, green: 0, sky: 0, pink: 0, yellow: 0, rose: 0, teal: 0, amber: 0, orange: 0, emerald: 0, indigo: 0, purple: 0, blue: 0, violet: 0]
+page.jsx:1464   📁 Saving WL (PLyZI3qCmOZ9tmr8qd8ftwxHw_EiMdYmg9): videos=4364, groups=[red: 217, teal: 0, green: 790, purple: 0, orange: 0, emerald: 0, violet: 0, lime: 0, sky: 0, indigo: 0, pink: 738, yellow: 2616, cyan: 0, blue: 0, amber: 0, rose: 0]
+page.jsx:1464   📁 Saving Souls (merged_1764957141226_uzcepjjz3): videos=444, groups=[0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: 0, 13: 0, 14: 0, 15: 0, pink: 0, yellow: 0, emerald: 0, rose: 0, orange: 21, blue: 0, sky: 0, green: 30, purple: 0, cyan: 0, indigo: 0, violet: 0, teal: 0, amber: 0, red: 178, lime: 0]
+page.jsx:1464   📁 Saving Elden Ring Weapon/Spell Mods (PLaDT9HdzykqAE5vYsa1GY2BMIQyZA016m): videos=21, groups=[green: 0, amber: 0, violet: 0, purple: 0, pink: 0, emerald: 0, rose: 0, lime: 0, cyan: 0, blue: 0, yellow: 0, sky: 0, orange: 0, teal: 0, indigo: 0, red: 0]
+page.jsx:1464   📁 Saving Elden Ring Boss Mods (PLaDT9HdzykqB-5fhSuyXdylNTWXazbAXG): videos=65, groups=[rose: 0, emerald: 0, cyan: 0, teal: 0, red: 0, lime: 0, amber: 0, orange: 0, blue: 0, indigo: 0, pink: 0, green: 0, purple: 0, violet: 0, sky: 0, yellow: 0]
+page.jsx:1464   📁 Saving Elden Ring Misc Mods (PLaDT9HdzykqBcBk2l8tZt2rwnY82yfTnL): videos=7, groups=[emerald: 0, cyan: 0, sky: 0, rose: 0, amber: 0, indigo: 0, red: 0, yellow: 0, blue: 0, violet: 0, lime: 0, teal: 0, purple: 0, pink: 0, orange: 0, green: 0]
+page.jsx:1464   📁 Saving Elden Ring Custom Battles (PLrDGn-bj937l7n5Q3Bhwfa4dJ1lY4_KxI): videos=611, groups=[sky: 0, indigo: 0, purple: 0, green: 0, orange: 0, emerald: 0, rose: 0, pink: 0, cyan: 0, violet: 0, blue: 0, amber: 0, lime: 0, yellow: 0, teal: 0, red: 0]
+page.jsx:1464   📁 Saving Elden Ring (PLZcB8DBb__moRiIEHzmPWdJq4o7zB1RyV): videos=126, groups=[orange: 0, rose: 0, lime: 0, emerald: 0, amber: 0, indigo: 0, blue: 0, sky: 0, cyan: 0, green: 0, pink: 0, red: 0, yellow: 0, teal: 0, violet: 0, purple: 0]
+page.jsx:1464   📁 Saving Soulsborne (PLZcB8DBb__mpt2qAjh6ZKxQcLolZw0DDu): videos=24, groups=[green: 0, purple: 0, lime: 0, pink: 0, teal: 0, cyan: 0, violet: 0, indigo: 0, yellow: 0, red: 0, orange: 0, sky: 0, emerald: 0, rose: 0, blue: 0, amber: 0]
+page.jsx:1464   📁 Saving Dark Souls III (PLZcB8DBb__mr-b7gf5BgMcTRe00Op5xcm): videos=2, groups=[cyan: 0, violet: 0, sky: 0, red: 0, teal: 0, orange: 0, green: 0, blue: 0, yellow: 0, indigo: 0, lime: 0, pink: 0, amber: 0, emerald: 0, purple: 0, rose: 0]
+page.jsx:1464   📁 Saving Elden Ring: Randomizer Playthrough (PLZcB8DBb__mojTEkZg4pi5jrhRLWj4PrO): videos=10, groups=[orange: 0, green: 0, blue: 0, cyan: 0, pink: 0, purple: 0, rose: 0, amber: 0, lime: 0, indigo: 0, emerald: 0, sky: 0, yellow: 0, teal: 0, violet: 0, red: 0]
+page.jsx:1464   📁 Saving Elden Ring In-depth Weapon Guide (PLyT5NcCVqdX_V_f4l1Fpl18hHXiuhwOCf): videos=24, groups=[red: 0, violet: 0, yellow: 0, blue: 0, lime: 0, rose: 0, purple: 0, pink: 0, indigo: 0, teal: 0, sky: 0, orange: 0, emerald: 0, green: 0, amber: 0, cyan: 0]
+page.jsx:1464   📁 Saving Elden Ring Challenge Runs (PLAo3E9RYIVM6BHuil5JHGMr26a5rlt0zt): videos=27, groups=[cyan: 0, blue: 0, purple: 0, violet: 0, green: 0, sky: 0, red: 0, emerald: 0, indigo: 0, amber: 0, teal: 0, orange: 0, rose: 0, pink: 0, yellow: 0, lime: 0]
+page.jsx:1464   📁 Saving Unsorted (_unsorted_): videos=0, groups=[indigo: 0, lime: 0, sky: 0, violet: 0, amber: 0, cyan: 0, yellow: 0, orange: 0, green: 0, teal: 0, rose: 0, blue: 0, emerald: 0, purple: 0, red: 0, pink: 0]
+page.jsx:1464   📁 Saving Gaming Stuff (converted_PLyZI3qCmOZ9tmr8qd8ftwxHw_EiMdYmg9_yellow_1764726877885): videos=2616, groups=[orange: 327, violet: 0, blue: 307, indigo: 110, amber: 0, teal: 0, red: 337, purple: 161, lime: 0, green: 377, cyan: 212, yellow: 276, rose: 0, pink: 166, sky: 0, emerald: 0]
+page.jsx:1464   📁 Saving Cinema/Goon (converted_PLyZI3qCmOZ9tmr8qd8ftwxHw_EiMdYmg9_red_1764858066900): videos=218, groups=[sky: 0, lime: 0, amber: 0, rose: 0, teal: 0, pink: 0, red: 26, orange: 0, green: 0, cyan: 0, yellow: 0, purple: 0, indigo: 0, emerald: 0, blue: 0, violet: 0]
+page.jsx:1464   📁 Saving Minecraft (converted_converted_PLyZI3qCmOZ9tmr8qd8ftwxHw_EiMdYmg9_yellow_1764726877885_green_1764891445869): videos=413, groups=[0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: 0, 13: 0, 14: 0, 15: 0, purple: 0, green: 1, indigo: 0, pink: 0, blue: 2, violet: 0, orange: 4, sky: 4, emerald: 0, yellow: 4, amber: 0, red: 3, rose: 0, lime: 0, cyan: 0, teal: 0]
+page.jsx:1464   📁 Saving FPS (converted_converted_PLyZI3qCmOZ9tmr8qd8ftwxHw_EiMdYmg9_yellow_1764726877885_blue_1764895776949): videos=306, groups=[indigo: 7, rose: 0, amber: 9, green: 2, pink: 17, blue: 10, cyan: 14, teal: 0, violet: 3, sky: 3, lime: 17, orange: 4, emerald: 7, yellow: 28, purple: 4, red: 10]
+page.jsx:1464   📁 Saving Indigo (converted_PLyZI3qCmOZ9umIkxOGjUMiDLxGtsn6so7_indigo_1764901655622): videos=98, groups=[purple: 0, violet: 0, sky: 0, indigo: 0, rose: 0, cyan: 0, pink: 0, emerald: 0, orange: 0, blue: 13, amber: 0, lime: 0, teal: 0, red: 36, green: 9, yellow: 0]
+page.jsx:1464   📁 Saving Low Quality (converted_PLyZI3qCmOZ9tmr8qd8ftwxHw_EiMdYmg9_green_1764911111980): videos=790, groups=[teal: 0, cyan: 0, pink: 0, blue: 0, yellow: 0, violet: 0, orange: 0, lime: 0, green: 0, red: 10, emerald: 0, amber: 0, sky: 0, purple: 0, rose: 0, indigo: 0]
+page.jsx:910 ⏭️ Ignoring snapshot update (from our own save, 2698ms since save, 4708ms since local change)
+page.jsx:910 ⏭️ Ignoring snapshot update (from our own save, 7550ms since save, 9560ms since local change)
+page.jsx:910 ⏭️ Ignoring snapshot update (from our own save, 12624ms since save, 14634ms since local change)
