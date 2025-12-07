@@ -479,17 +479,25 @@ stmt.run(JSON.stringify(optimizedPlaylists), JSON.stringify(tabsToSave), Date.no
 **Default Channels Data Structure:**
 ```javascript
 // Example default channels (you'll provide the full list)
-const defaultChannels = [
-  {
-    id: "PLrAXtmRdnEQy6nuLMH7Fby8lE0s8j2kZ1",
-    name: "Popular Music",
-    videos: [], // Will be fetched on first use or can be pre-populated
-    groups: createDefaultGroups(),
-    isDefault: true, // Flag to identify default channels
-    canDelete: false, // Users can't delete defaults, but can hide them
-  },
-  // ... 100s more channels
-];
+// Note: Structure matches the JSON file format with 'channels' property
+const defaultChannels = {
+  version: "1.0.0",
+  lastUpdated: "2025-01-06",
+  channels: [
+    {
+      id: "PLrAXtmRdnEQy6nuLMH7Fby8lE0s8j2kZ1",
+      name: "Popular Music",
+      type: "playlist",
+      category: "Music",
+      description: "Curated popular music playlist",
+      videos: [], // Will be fetched on first use or can be pre-populated
+      groups: createDefaultGroups(),
+      isDefault: true, // Flag to identify default channels
+      canDelete: false, // Users can't delete defaults, but can hide them
+    },
+    // ... 100s more channels
+  ]
+};
 ```
 
 **Default Channels Management:**
@@ -530,7 +538,8 @@ const defaultChannels = [
       "category": "Technology",
       "description": "Technology news and reviews"
     }
-    // ... 100s more entries
+  ]
+}
   ]
 }
 ```
