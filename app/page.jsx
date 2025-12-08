@@ -840,18 +840,10 @@ export default function YouTubePlaylistPlayer() {
           measurementId: config.firebaseMeasurementId
         };
 
-        // Test Firebase connection
-        const { initializeApp: testInitApp } = await import('firebase/app');
-        const { getFirestore } = await import('firebase/firestore');
-        const { getAuth } = await import('firebase/auth');
-        
-        const testApp = testInitApp(testFirebaseConfig);
-        // Local database doesn't need Firebase connection test
-        // const testDb = getFirestore(testApp);
-        const testAuth = getAuth(testApp);
-        
-        // Test Firestore connection
-        await testDb._delegate._databaseId;
+        // Firebase connection test removed - using local SQLite database instead
+        // No need to test Firebase connection since we're not using it
+        // Just validate the config format is correct (all fields present)
+        // Config validation passed if we got here
       }
 
       return true;

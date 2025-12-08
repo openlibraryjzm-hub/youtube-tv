@@ -4,13 +4,22 @@
   "directories": {
     "output": "dist"
   },
+  "compression": "maximum",
   "files": [
     "app/**/*",
     "lib/**/*",
     "public/**/*",
     "package.json",
     "next.config.mjs",
-    "electron/**/*"
+    "electron/**/*",
+    "!**/*.map",
+    "!**/test/**",
+    "!**/tests/**",
+    "!**/__tests__/**",
+    "!**/docs/**",
+    "!**/examples/**",
+    "!**/.github/**",
+    "!**/.vscode/**"
   ],
   "extraResources": [
     {
