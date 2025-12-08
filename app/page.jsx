@@ -67,12 +67,46 @@ import {
   GitMerge,
   Pin,
 } from "lucide-react"
-import { collection, query, orderBy, limit, deleteDoc, setDoc, doc, onSnapshot, updateDoc, getDocs, writeBatch, where, deleteField } from "firebase/firestore";
+// Firebase imports removed - using local database via API routes instead
+// import { collection, query, orderBy, limit, deleteDoc, setDoc, doc, onSnapshot, updateDoc, getDocs, writeBatch, where, deleteField } from "firebase/firestore";
 
-// Firebase Imports
-import { initializeApp } from "firebase/app";
-import { getFirestore, doc as firestoreDoc, onSnapshot as firestoreOnSnapshot, setDoc as firestoreSetDoc, collection as firestoreCollection, getDocs as firestoreGetDocs, deleteDoc as firestoreDeleteDoc, getDoc } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+// Local Database API Helpers
+const API_BASE = '/api/user';
+
+// Fetch user data from local database
+const fetchUserData = async (userId) => {
+  const response = await fetch(`${API_BASE}/${userId}`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch user data: ${response.statusText}`);
+  }
+  return await response.json();
+};
+
+// Save user data to local database
+const saveUserData = async (userId, data) => {
+  const response = await fetch(`${API_BASE}/${userId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to save user data: ${response.statusText}`);
+  }
+  return await response.json();
+};
+
+// Save video progress to local database
+const saveVideoProgress = async (userId, videoProgress) => {
+  const response = await fetch(`${API_BASE}/${userId}/progress`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ videoProgress })
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to save video progress: ${response.statusText}`);
+  }
+  return await response.json();
+};
 
 // Configuration management
 const CONFIG_STORAGE_KEY = 'youtube-tv-config';
@@ -153,18 +187,7 @@ const storeConfig = (firebaseConfig, apiKey) => {
   }
 };
 
-// Firebase will be initialized inside the component
-let app, db, auth;
-
-// Optional: Emulator support for local testing
-if (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_FIREBASE_EMULATOR === "true" && app) {
-  import("firebase/firestore").then(({ connectFirestoreEmulator }) => {
-    connectFirestoreEmulator(db, "localhost", 8080);
-  });
-  import("firebase/auth").then(({ connectAuthEmulator }) => {
-    connectAuthEmulator(auth, "http://localhost:9099");
-  });
-}
+// Local database - no initialization needed, handled by API routes
 
 const groupColors = {
   red: 'bg-red-500', 
@@ -350,6 +373,7 @@ export default function YouTubePlaylistPlayer() {
   const [showColorPickerModal, setShowColorPickerModal] = useState(false);
   const [colorPickerVideo, setColorPickerVideo] = useState(null);
   const [customColors, setCustomColors] = useState({}); // { colorKey: { bg: 'bg-xxx-500', ring: 'ring-xxx-500', fill: 'text-xxx-500' } }
+  const [colorOrder, setColorOrder] = useState([]); // Array of color keys in preferred order
   const [watchedFilter, setWatchedFilter] = useState('all');
   const [pinnedVideos, setPinnedVideos] = useState([]);
   const [scrollMemory, setScrollMemory] = useState({});
@@ -822,7 +846,8 @@ export default function YouTubePlaylistPlayer() {
         const { getAuth } = await import('firebase/auth');
         
         const testApp = testInitApp(testFirebaseConfig);
-        const testDb = getFirestore(testApp);
+        // Local database doesn't need Firebase connection test
+        // const testDb = getFirestore(testApp);
         const testAuth = getAuth(testApp);
         
         // Test Firestore connection
@@ -894,23 +919,20 @@ export default function YouTubePlaylistPlayer() {
     }
   };
 
-  // Check if configuration exists on app load and initialize Firebase
+  // Check if API key exists on app load (local DB doesn't need Firebase)
   useEffect(() => {
     const stored = localStorage.getItem(CONFIG_STORAGE_KEY);
     if (!stored) {
       setShowConfigModal(true);
       setIsFirebaseInitialized(false);
     } else {
-      // Initialize Firebase with stored config
+      // Load API key from stored config
       try {
         const config = JSON.parse(stored);
-        app = initializeApp(config.firebaseConfig);
-        db = getFirestore(app);
-        auth = getAuth(app);
-        setCurrentApiKey(config.apiKey);
-        setIsFirebaseInitialized(true);
+        setCurrentApiKey(config.apiKey || defaultApiKey);
+        setIsFirebaseInitialized(true); // Reuse this flag to indicate app is ready
       } catch (error) {
-        console.error('Error initializing Firebase:', error);
+        console.error('Error loading config:', error);
         setShowConfigModal(true);
         setIsFirebaseInitialized(false);
       }
@@ -940,185 +962,66 @@ export default function YouTubePlaylistPlayer() {
     setUserId(persistentUserId);
   }, []);
 
-  // Expose recovery function once db is available
+  // Expose recovery function (disabled for local database - data is per-user)
   useEffect(() => {
-    if (!db || !userId) return;
+    if (!userId) return;
     
     window.recoverDataFromUser = async (sourceUserId) => {
-      if (!db) {
-        console.error('❌ Database not available');
-        return;
-      }
-      console.log(`🔄 Manually recovering data from user: ${sourceUserId}...`);
-      try {
-        const sourceDocRef = firestoreDoc(db, 'users', sourceUserId);
-        const sourceSnapshot = await getDoc(sourceDocRef);
-        
-        if (!sourceSnapshot.exists()) {
-          console.error(`❌ No data found for user ${sourceUserId}`);
-          return;
-        }
-        
-        const sourceData = sourceSnapshot.data();
-        console.log(`📦 Found data:`, {
-          playlistCount: sourceData.playlists?.length || 0,
-          tabCount: sourceData.playlistTabs?.length || 0
-        });
-        
-        const currentDocRef = firestoreDoc(db, 'users', userId);
-        const currentSnapshot = await getDoc(currentDocRef);
-        
-        let mergedData = { ...sourceData };
-        if (currentSnapshot.exists()) {
-          const currentData = currentSnapshot.data();
-          // Merge playlists
-          const playlistMap = new Map();
-          (currentData.playlists || []).forEach(p => playlistMap.set(p.id, p));
-          (sourceData.playlists || []).forEach(p => {
-            if (!playlistMap.has(p.id)) {
-              playlistMap.set(p.id, p);
-      } else {
-              const current = playlistMap.get(p.id);
-              const oldVideos = new Map(p.videos.map(v => [v.id, v]));
-              current.videos.forEach(v => oldVideos.set(v.id, v));
-              
-              const mergedGroups = { ...current.groups };
-              if (p.groups) {
-                Object.keys(groupColors).forEach(color => {
-                  if (p.groups[color] && Array.isArray(p.groups[color].videos)) {
-                    const oldGroupVideos = new Set(p.groups[color].videos);
-                    const currentGroupVideos = new Set(mergedGroups[color]?.videos || []);
-                    oldGroupVideos.forEach(id => currentGroupVideos.add(id));
-                    if (!mergedGroups[color]) {
-                      mergedGroups[color] = { name: p.groups[color].name || color.charAt(0).toUpperCase() + color.slice(1), videos: [] };
-                    }
-                    mergedGroups[color].videos = Array.from(currentGroupVideos);
-                  }
-                });
-              }
-              
-              playlistMap.set(p.id, { 
-                ...current, 
-                videos: Array.from(oldVideos.values()),
-                groups: mergedGroups
-              });
-            }
-          });
-          mergedData.playlists = Array.from(playlistMap.values());
-          mergedData.videoProgress = { ...(currentData.videoProgress || {}), ...(sourceData.videoProgress || {}) };
-          mergedData.playlistTabs = currentData.playlistTabs || sourceData.playlistTabs;
-        }
-        
-        await firestoreSetDoc(currentDocRef, mergedData);
-        console.log(`✅ Successfully recovered data! Please refresh the page.`);
-        alert('Data recovered! Refreshing page...');
-        window.location.reload();
-      } catch (error) {
-        console.error('❌ Error recovering data:', error);
-        alert('Error recovering data. Check console for details.');
-      }
+      console.warn('⚠️ Data recovery from other users is not supported with local database');
+      alert('Data recovery from other users is not supported with local database. Each user has their own isolated data.');
     };
-  }, [db, userId]);
+  }, [userId]);
 
-  // Load data from Firestore
+  // Load data from local database
   useEffect(() => {
-    if (!userId || !db) return;
+    if (!userId || !isFirebaseInitialized) return; // Reuse isFirebaseInitialized flag to indicate app is ready
 
-    const docRef = firestoreDoc(db, 'users', userId);
-    console.log(`📥 Loading data from Firestore for user: ${userId}`);
-    const unsubscribe = onSnapshot(docRef, async (docSnap) => {
-      // On initial load, always accept the data
-      if (!hasLoadedInitialDataRef.current) {
-        hasLoadedInitialDataRef.current = true;
-        console.log(`📥 Initial data load from Firestore`);
-      } else {
-        // After initial load, ignore snapshot updates that come from our own saves
-        const timeSinceSave = Date.now() - lastSaveTimeRef.current;
-        const timeSinceLocalChange = Date.now() - lastLocalChangeTimeRef.current;
-        
-        // If we're currently saving, always ignore snapshots (they're from our own save)
-        if (isSavingRef.current) {
-          console.log(`⏭️ Ignoring snapshot update (currently saving)`);
-          return;
+    console.log(`📥 Loading data from local database for user: ${userId}`);
+    
+    const loadData = async () => {
+      try {
+        if (!hasLoadedInitialDataRef.current) {
+          hasLoadedInitialDataRef.current = true;
+          console.log(`📥 Initial data load from local database`);
         }
         
-        // If we just saved (within last 2 seconds), this snapshot is likely from our own save - ignore it
-        if (timeSinceSave < 2000) {
-          console.log(`⏭️ Ignoring snapshot update (from our own save, ${Math.round(timeSinceSave)}ms since save)`);
-          return;
-        }
-        
-        // CRITICAL FIX: Don't blindly reject snapshots after local changes
-        // Instead, we'll check if the snapshot would lose data AFTER loading it
-        // This allows us to accept snapshots that contain our saved data
-        // The wouldLoseData check below will handle rejecting snapshots that would overwrite newer local changes
-      }
-      
-      let finalPlaylists;
-      let finalTabs;
-
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        console.log(`📦 Firestore data loaded:`, {
+        const data = await fetchUserData(userId);
+        console.log(`📦 Local database data loaded:`, {
           playlistCount: data.playlists?.length || 0,
           tabCount: data.playlistTabs?.length || 0,
           videoProgressCount: Object.keys(data.videoProgress || {}).length
         });
-        console.log(`📋 Playlist IDs:`, data.playlists?.map(p => ({ id: p.id, name: p.name, videoCount: p.videos?.length || 0, groups: p.groups ? Object.keys(p.groups).map(c => ({ color: c, count: p.groups[c]?.videos?.length || 0 })) : 'none' })) || []);
         
-        // Log detailed group information for debugging
-        data.playlists?.forEach(p => {
-          if (p.groups) {
-            const groupCounts = Object.entries(p.groups).map(([color, group]) => 
-              `${color}: ${Array.isArray(group.videos) ? group.videos.length : 'invalid'}`
-            ).join(', ');
-            console.log(`  📁 Loaded ${p.name} (${p.id}): videos=${p.videos?.length || 0}, groups=[${groupCounts}]`);
-          } else {
-            console.log(`  📁 Loaded ${p.name} (${p.id}): videos=${p.videos?.length || 0}, groups=missing`);
-          }
-        });
-        finalPlaylists = data.playlists || initialPlaylists;
-        // Log representativeVideoId from loaded data for debugging
-        finalPlaylists.forEach(p => {
-          if (p.representativeVideoId) {
-            console.log(`📥 Loaded representativeVideoId for ${p.name}: ${p.representativeVideoId}`);
-          }
-        });
-        finalTabs = data.playlistTabs || [{ name: 'All', playlistIds: [] }];
-        setVideoProgress(data.videoProgress || {});
+        let finalPlaylists = data.playlists || initialPlaylists;
+        const finalTabs = data.playlistTabs || [{ name: 'All', playlistIds: [] }];
         
         // Load custom colors and color order
         if (data.customColors) {
           setCustomColors(data.customColors);
         }
-      } else {
-        console.warn(`⚠️ No Firestore document found for user ${userId}, initializing with defaults`);
-        finalPlaylists = initialPlaylists;
-        finalTabs = [{ name: 'All', playlistIds: [] }];
-        firestoreSetDoc(docRef, {
-          playlists: finalPlaylists,
-          playlistTabs: finalTabs,
-          videoProgress: {}
-        }).catch(error => console.error("Error initializing user data in Firestore:", error));
-      }
-
-      // Remove duplicates by keeping the first occurrence of each playlist ID
-      const seenIds = new Set();
-      const originalLength = finalPlaylists.length;
-      console.log(`🔍 Processing ${originalLength} playlists from Firestore`);
-      finalPlaylists = finalPlaylists.filter(playlist => {
-        if (seenIds.has(playlist.id)) {
-          console.warn(`⚠️ Removing duplicate playlist: ${playlist.id} (${playlist.name})`);
-          return false;
+        if (data.colorOrder) {
+          setColorOrder(data.colorOrder);
         }
-        seenIds.add(playlist.id);
-        return true;
-      });
-      if (finalPlaylists.length < originalLength) {
-        console.log(`🧹 Filtered ${originalLength - finalPlaylists.length} duplicate playlists`);
-      }
-      
-      // Normalize playlists: ensure all have groups structure
+        
+        setVideoProgress(data.videoProgress || {});
+
+        // Remove duplicates by keeping the first occurrence of each playlist ID
+        const seenIds = new Set();
+        const originalLength = finalPlaylists.length;
+        console.log(`🔍 Processing ${originalLength} playlists from local database`);
+        finalPlaylists = finalPlaylists.filter(playlist => {
+          if (seenIds.has(playlist.id)) {
+            console.warn(`⚠️ Removing duplicate playlist: ${playlist.id} (${playlist.name})`);
+            return false;
+          }
+          seenIds.add(playlist.id);
+          return true;
+        });
+        if (finalPlaylists.length < originalLength) {
+          console.log(`🧹 Filtered ${originalLength - finalPlaylists.length} duplicate playlists`);
+        }
+        
+        // Normalize playlists: ensure all have groups structure
       let needsNormalization = false;
       finalPlaylists = finalPlaylists.map(playlist => {
         let playlistNeedsNormalization = false;
@@ -1191,513 +1094,108 @@ export default function YouTubePlaylistPlayer() {
         return normalizedPlaylist;
       });
       
-      // If duplicates were found, save the cleaned list back to Firestore
-      // BUT: Only save if we're not currently saving (to prevent overwriting our own saves)
-      if (finalPlaylists.length < originalLength && docSnap.exists() && !isSavingRef.current) {
-        console.log(`🧹 Cleaned ${originalLength - finalPlaylists.length} duplicate playlist(s), saving to Firestore...`);
-        firestoreSetDoc(docRef, { playlists: finalPlaylists }, { merge: true })
-          .catch(error => console.error("Error saving normalized playlists to Firestore:", error));
-      }
-      
-      // Before applying snapshot, check if it would overwrite newer local changes
-      // Compare colored folder video counts - if local has more, don't overwrite
-      // This check runs regardless of timing to prevent data loss
-      if (hasLoadedInitialDataRef.current) {
-        let wouldLoseData = false;
-        
-        // Check if snapshot would remove locally added playlists
-        // Get snapshot playlist IDs directly from the document (before we merge local playlists)
-        const snapshotPlaylistIdsFromDoc = new Set(
-          (docSnap.exists() && docSnap.data().playlists) 
-            ? docSnap.data().playlists.map(p => p.id) 
-            : []
-        );
-        const localPlaylistsNotInSnapshot = playlists.filter(localPlaylist => {
-          if (localPlaylist.id === '_unsorted_') return false;
-          if (snapshotPlaylistIdsFromDoc.has(localPlaylist.id)) return false;
-          // Only check playlists that weren't loaded from Firestore (they're new local additions)
-          return !playlistsLoadedFromFirestore.current.has(localPlaylist.id);
-        });
-        
-        if (localPlaylistsNotInSnapshot.length > 0) {
-          console.warn(`⚠️ Snapshot would remove ${localPlaylistsNotInSnapshot.length} locally added playlist(s):`, localPlaylistsNotInSnapshot.map(p => `${p.name} (${p.id})`));
-          wouldLoseData = true;
-        }
-        
-        finalPlaylists.forEach(snapshotPlaylist => {
-          const localPlaylist = playlists.find(p => p.id === snapshotPlaylist.id);
-          if (localPlaylist && localPlaylist.groups && snapshotPlaylist.groups) {
-            Object.keys(allColorKeys).forEach(color => {
-              const localCount = localPlaylist.groups[color]?.videos?.length || 0;
-              const snapshotCount = snapshotPlaylist.groups[color]?.videos?.length || 0;
-              if (localCount > snapshotCount) {
-                console.warn(`⚠️ Snapshot would reduce ${localPlaylist.name} ${color} folder from ${localCount} to ${snapshotCount} videos - ignoring to preserve local changes`);
-                wouldLoseData = true;
-              }
-            });
-            
-          }
-        });
-        
-        // CRITICAL FIX: Before rejecting snapshot, try to merge local video IDs from groups into snapshot
-        // This preserves merged videos that exist locally but aren't in the snapshot yet
-        // Only merge if the video IDs exist in local videos array (they're valid merged videos)
-        finalPlaylists = finalPlaylists.map(snapshotPlaylist => {
-          const localPlaylist = playlists.find(p => p.id === snapshotPlaylist.id);
-          if (!localPlaylist || !localPlaylist.groups || !snapshotPlaylist.groups) {
-            return snapshotPlaylist;
-          }
-          
-          // Check if local has video IDs in groups that aren't in snapshot's videos array
-          const snapshotVideoIds = new Set((snapshotPlaylist.videos || []).map(v => v?.id).filter(Boolean));
-          const localVideoIds = new Set((localPlaylist.videos || []).map(v => v?.id).filter(Boolean));
-          
-          let needsMerge = false;
-          const mergedGroups = { ...snapshotPlaylist.groups };
-          
-          Object.keys(allColorKeys).forEach(color => {
-            const localGroupVideoIds = new Set(localPlaylist.groups[color]?.videos || []);
-            const snapshotGroupVideoIds = new Set(snapshotPlaylist.groups[color]?.videos || []);
-            
-            // Find video IDs that are in local group but not in snapshot group
-            const missingInSnapshot = Array.from(localGroupVideoIds).filter(id => !snapshotGroupVideoIds.has(id));
-            
-            // Only preserve IDs if they exist in local videos array (they're valid merged videos)
-            const validMissingIds = missingInSnapshot.filter(id => localVideoIds.has(id));
-            
-            if (validMissingIds.length > 0) {
-              needsMerge = true;
-              mergedGroups[color] = {
-                ...(snapshotPlaylist.groups[color] || { name: color.charAt(0).toUpperCase() + color.slice(1), videos: [] }),
-                videos: [...(snapshotPlaylist.groups[color]?.videos || []), ...validMissingIds]
-              };
-              console.log(`🔗 Preserving ${validMissingIds.length} merged video IDs in ${snapshotPlaylist.name} ${color} folder from local state (videos exist locally)`);
-            }
-          });
-          
-          if (needsMerge) {
-            return { 
-              ...snapshotPlaylist, 
-              groups: mergedGroups,
-              // Preserve representativeVideoId from snapshot
-              ...(snapshotPlaylist.representativeVideoId && { representativeVideoId: snapshotPlaylist.representativeVideoId })
-            };
-          }
-          
-          // Preserve representativeVideoId even if no merge needed
-          return {
-            ...snapshotPlaylist,
-            ...(snapshotPlaylist.representativeVideoId && { representativeVideoId: snapshotPlaylist.representativeVideoId })
-          };
-        });
-        
-        // Re-check data loss after merging (counts might have changed)
-        finalPlaylists.forEach(snapshotPlaylist => {
-          const localPlaylist = playlists.find(p => p.id === snapshotPlaylist.id);
-          if (localPlaylist && localPlaylist.groups && snapshotPlaylist.groups) {
-            Object.keys(allColorKeys).forEach(color => {
-              const localCount = localPlaylist.groups[color]?.videos?.length || 0;
-              const snapshotCount = snapshotPlaylist.groups[color]?.videos?.length || 0;
-              if (localCount > snapshotCount) {
-                console.warn(`⚠️ Snapshot would still reduce ${localPlaylist.name} ${color} folder from ${localCount} to ${snapshotCount} videos - ignoring to preserve local changes`);
-                wouldLoseData = true;
-              }
-            });
-          }
-        });
-        
-        if (wouldLoseData) {
-          console.log(`⏭️ Ignoring snapshot update (would lose local changes - preventing data loss)`);
-          return;
-        }
-      }
-      
-      // Only save normalization if it's a structural change (missing groups, not array, etc.)
-      // NOT for video ID validation - we preserve all video IDs now to prevent data loss
-      if (needsNormalization && docSnap.exists() && !isSavingRef.current) {
-        const structuralChanges = finalPlaylists.some(p => 
-          !p.groups || 
-          typeof p.groups !== 'object' ||
-          Object.keys(p.groups).some(color => 
-            !p.groups[color] || 
-            typeof p.groups[color] !== 'object' ||
-            !Array.isArray(p.groups[color].videos) ||
-            !p.groups[color].name
-          )
-        );
-        
-        if (structuralChanges) {
-          console.log(`🔧 Normalized playlist groups structure (structural changes only), saving to Firestore...`);
-          // Log what changed during normalization
-          finalPlaylists.forEach(p => {
-            if (p.groups) {
-              const groupCounts = Object.entries(p.groups).map(([color, group]) => 
-                `${color}: ${Array.isArray(group.videos) ? group.videos.length : 'invalid'}`
-              ).join(', ');
-              console.log(`  📁 After normalization ${p.name}: groups=[${groupCounts}]`);
-            }
-          });
-          firestoreSetDoc(docRef, { playlists: finalPlaylists }, { merge: true })
-            .catch(error => console.error("Error saving normalized playlists to Firestore:", error));
-        } else {
-          console.log(`⏭️ Skipping normalization save - only video ID validation warnings, no structural changes to save`);
-        }
-      } else if (isSavingRef.current && needsNormalization) {
-        console.log(`⏭️ Skipping normalization save - we're currently saving`);
-      }
-
-      if (!finalPlaylists.some(p => p.id === '_unsorted_')) {
-        finalPlaylists.push({
+        // Ensure _unsorted_ playlist exists
+        if (!finalPlaylists.some(p => p.id === '_unsorted_')) {
+          finalPlaylists.push({
             name: "Unsorted", id: "_unsorted_", videos: [],
             groups: createDefaultGroups(),
             starred: []
-        });
-      }
-      
-      // CRITICAL FIX: Preserve locally added playlists that aren't in the snapshot yet
-      // This prevents newly bulk-added playlists from being deleted by snapshots
-      // Only preserve playlists that:
-      // 1. Exist locally but not in snapshot (newly added)
-      // 2. Are not marked as loaded from Firestore (they're genuinely new)
-      // 3. Are not the _unsorted_ playlist (it's always added if missing)
-      const snapshotPlaylistIdsFromDoc = new Set(
-        (docSnap.exists() && docSnap.data().playlists) 
-          ? docSnap.data().playlists.map(p => p.id) 
-          : []
-      );
-      const localPlaylistsNotInSnapshot = playlists.filter(localPlaylist => {
-        // Skip if it's in the snapshot (will be merged/updated)
-        if (snapshotPlaylistIdsFromDoc.has(localPlaylist.id)) return false;
-        // Skip _unsorted_ (it's handled above)
-        if (localPlaylist.id === '_unsorted_') return false;
-        // Only preserve if it wasn't loaded from Firestore (it's a new local addition)
-        const wasLoadedFromFirestore = playlistsLoadedFromFirestore.current.has(localPlaylist.id);
-        if (wasLoadedFromFirestore) return false;
-        // Preserve newly added playlists
-        console.log(`🔒 Preserving locally added playlist "${localPlaylist.name}" (${localPlaylist.id}) - not in snapshot yet`);
-        return true;
-      });
-      
-      // Merge preserved local playlists into final playlists
-      if (localPlaylistsNotInSnapshot.length > 0) {
-        console.log(`🔒 Preserving ${localPlaylistsNotInSnapshot.length} locally added playlist(s) from snapshot overwrite`);
-        finalPlaylists = [...finalPlaylists, ...localPlaylistsNotInSnapshot];
-      }
-      
-      // Track which playlists were loaded from Firestore (to prevent unnecessary re-fetching)
-      // Also track which ones have videos (so we know they don't need fetching)
-      // Only mark playlists as "loaded from Firestore" if they were actually in the snapshot
-      // (not the ones we preserved from local state)
-      const snapshotOnlyIds = new Set((docSnap.exists() && docSnap.data().playlists) 
-        ? docSnap.data().playlists.map(p => p.id) 
-        : []);
-      const playlistsWithVideos = new Set(finalPlaylists.filter(p => p.videos && p.videos.length > 0).map(p => p.id));
-      playlistsLoadedFromFirestore.current = snapshotOnlyIds;
-      
-      // CRITICAL FIX: Expand video IDs to full video objects
-      // Videos are stored as just IDs in Firestore to save space, but we need full objects for the app
-      // For now, create minimal objects (metadata will be fetched on demand when videos are played)
-      finalPlaylists = finalPlaylists.map(playlist => {
-        if (!playlist.videos || playlist.videos.length === 0) return playlist;
-        
-        // Check if videos are already full objects or just IDs
-        const firstVideo = playlist.videos[0];
-        // Videos are IDs if: they're strings (new format - IDs only to save space)
-        // OR they're objects without an 'id' property (just the ID value itself)
-        // OR they're objects with 'id' but no 'title' property (legacy format)
-        const videosAreIds = typeof firstVideo === 'string' || 
-                            (firstVideo && typeof firstVideo === 'object' && !firstVideo.id && !firstVideo.title) ||
-                            (firstVideo && typeof firstVideo === 'object' && firstVideo.id && !firstVideo.title && !firstVideo.duration);
-        
-        if (!videosAreIds) {
-          // Videos are already full objects with titles, no expansion needed
-          return playlist;
+          });
         }
         
-        // Videos are just IDs (strings) - expand them to minimal objects
-        // Titles will be fetched in background since we're now storing only IDs to save space
-        const expandedVideos = playlist.videos.map(v => {
-          // Handle different formats: string ID (new format), object with id, or object without id property
-          let videoId, existingTitle, existingDuration;
+        // Track which playlists have videos (so we know they don't need fetching)
+        const playlistsWithVideos = new Set(finalPlaylists.filter(p => p.videos && p.videos.length > 0).map(p => p.id));
+        playlistsLoadedFromFirestore.current = new Set(finalPlaylists.map(p => p.id));
+      
+        // Expand video IDs to full video objects if needed
+        finalPlaylists = finalPlaylists.map(playlist => {
+          if (!playlist.videos || playlist.videos.length === 0) return playlist;
           
-          if (typeof v === 'string') {
-            // New format: just an ID string (to save space - titles fetched on demand)
-            videoId = v;
-            existingTitle = '';
-            existingDuration = 1;
-          } else if (v && typeof v === 'object') {
-            // Legacy format: could be { id, title } or just { id }
-            videoId = v.id || v;
-            existingTitle = v.title || '';
-            existingDuration = v.duration || 1;
-          } else {
-            // Fallback
-            videoId = v;
-            existingTitle = '';
-            existingDuration = 1;
+          // Check if videos are already full objects or just IDs
+          const firstVideo = playlist.videos[0];
+          const videosAreIds = typeof firstVideo === 'string';
+          
+          if (!videosAreIds) {
+            // Videos are already full objects, no expansion needed
+            return playlist;
           }
+          
+          // Videos are just IDs (strings) - expand them to minimal objects
+          const expandedVideos = playlist.videos.map(v => ({
+            id: typeof v === 'string' ? v : (v?.id || v),
+            title: '',
+            duration: 1
+          }));
           
           return {
-            id: videoId,
-            title: existingTitle, // Will be empty for new saves (IDs only) - fetched in background
-            duration: existingDuration
+            ...playlist,
+            videos: expandedVideos
           };
         });
         
-        // Since we're now saving only IDs, most videos won't have titles initially
-        // CRITICAL: Check videoMetadata subcollection FIRST before making API calls
-        // This prevents duplicate API calls for videos we've already fetched
-        const videosNeedingTitles = expandedVideos.filter(v => {
-          const videoId = v.id;
-          // Skip if video already has a title
-          if (v.title && v.title.trim() !== '') return false;
-          // Skip if we've already fetched title for this video in this session
-          if (titlesFetchedThisSession.current.has(videoId)) return false;
-          return true;
-        });
-        const videosWithTitles = expandedVideos.length - videosNeedingTitles.length;
-        const videosWithoutTitles = videosNeedingTitles.length;
+        // Mark playlists with videos as fetched this session
+        playlistsWithVideos.forEach(id => playlistsFetchedThisSession.current.add(id));
         
-        // CRITICAL: Only check in-memory cache (localStorage) - NO Firestore reads on load
-        // This prevents 10-15k read spikes on refresh
-        // Metadata will be fetched lazily when videos are actually viewed
-        if (videosNeedingTitles.length > 0) {
-          // Check ONLY in-memory cache (loaded from localStorage)
-          const cachedTitles = {};
-          videosNeedingTitles.forEach(v => {
-            const id = v.id;
-            const cached = metadataCacheInMemory.current.get(id);
-            if (cached && cached.title && cached.title.trim() !== '') {
-              cachedTitles[id] = cached.title;
-              titlesFetchedThisSession.current.add(id);
-            }
-          });
-          
-          // Update playlists with cached titles from localStorage only
-          if (Object.keys(cachedTitles).length > 0) {
-            setPlaylists(prev => prev.map(p => {
-              if (p.id !== playlist.id) return p;
-              return {
-                ...p,
-                videos: p.videos.map(v => {
-                  const videoId = typeof v === 'string' ? v : v.id;
-                  const cachedTitle = cachedTitles[videoId];
-                  if (cachedTitle) {
-                    if (typeof v === 'string') {
-                      return { id: v, title: cachedTitle, duration: 1 };
-                    }
-                    return { ...v, title: cachedTitle };
-                  }
-                  return v;
-                })
-              };
-            }));
-            console.log(`✅ Found ${Object.keys(cachedTitles).length} cached titles for ${playlist.name} (from localStorage, NO Firestore reads)`);
-          }
-        }
-        console.log(`📦 Expanded ${playlist.name}: ${expandedVideos.length} videos (${videosWithTitles} with titles, ${videosWithoutTitles} without)`);
-        
-        return {
-          ...playlist,
-          videos: expandedVideos,
-          // Preserve representativeVideoId if it exists
-          ...(playlist.representativeVideoId && { representativeVideoId: playlist.representativeVideoId })
-        };
-      });
-      
-      // CRITICAL FIX: Restore video objects for orphaned video IDs in groups
-      // This fixes the issue where merged videos have IDs in groups but video objects aren't in videos array
-      finalPlaylists = finalPlaylists.map(playlist => {
-        if (!playlist.groups || !playlist.videos) return playlist;
-        
-        const videoIdsInArray = new Set(playlist.videos.map(v => v?.id).filter(Boolean));
-        const allGroupVideoIds = new Set();
-        Object.values(playlist.groups).forEach(group => {
-          if (Array.isArray(group.videos)) {
-            group.videos.forEach(id => allGroupVideoIds.add(id));
-          }
-        });
-        
-        // Find video IDs that are in groups but not in videos array
-        const orphanedIds = Array.from(allGroupVideoIds).filter(id => !videoIdsInArray.has(id));
-        
-        if (orphanedIds.length > 0) {
-          console.log(`🔧 Found ${orphanedIds.length} orphaned video IDs in ${playlist.name} groups - attempting to restore video objects`);
-          
-          // Try to find these videos in other playlists (they might have been merged from another playlist)
-          const restoredVideos = [];
-          finalPlaylists.forEach(otherPlaylist => {
-            if (otherPlaylist.id === playlist.id || !otherPlaylist.videos) return;
-            orphanedIds.forEach(orphanedId => {
-              const video = otherPlaylist.videos.find(v => v?.id === orphanedId);
-              if (video && !restoredVideos.some(v => v.id === orphanedId)) {
-                restoredVideos.push(video);
-                console.log(`  ✅ Restored video object for ${orphanedId} from ${otherPlaylist.name}`);
-              }
-            });
-          });
-          
-          if (restoredVideos.length > 0) {
-            const updatedVideos = [...playlist.videos, ...restoredVideos];
-            console.log(`🔧 Restored ${restoredVideos.length} video objects to ${playlist.name} (${orphanedIds.length - restoredVideos.length} still missing)`);
-            return { ...playlist, videos: updatedVideos };
-          } else {
-            // CRITICAL: If we can't restore video objects, remove the orphaned IDs from groups
-            // This prevents the warning from appearing repeatedly and ensures data consistency
-            const unfixableIds = orphanedIds;
-            console.error(`❌ CRITICAL: Could not restore ${unfixableIds.length} video objects for ${playlist.name}. Removing orphaned IDs from groups to prevent data inconsistency.`, unfixableIds);
-            
-            const cleanedGroups = { ...playlist.groups };
-            Object.entries(cleanedGroups).forEach(([color, group]) => {
-              if (Array.isArray(group.videos)) {
-                const cleanedIds = group.videos.filter(id => !unfixableIds.includes(id));
-                if (cleanedIds.length !== group.videos.length) {
-                  cleanedGroups[color] = {
-                    ...group,
-                    videos: cleanedIds
-                  };
-                  console.log(`  🧹 Removed ${group.videos.length - cleanedIds.length} orphaned IDs from ${playlist.name} ${color} group`);
-                }
-              }
-            });
-            
-            return { ...playlist, groups: cleanedGroups };
-          }
-        }
-        
-        return playlist;
-      });
-      
-      // If a playlist was loaded with videos, mark it as fetched this session (so we don't re-fetch on refresh)
-      playlistsWithVideos.forEach(id => playlistsFetchedThisSession.current.add(id));
-      
-      setPlaylists(finalPlaylists);
-      setPlaylistTabs(finalTabs);
-
-    }, (error) => {
-      console.error("Error fetching Firestore data:", error);
-      alert("Failed to load data from Firestore. Please check your connection.");
-    });
-
-    return () => unsubscribe();
-  }, [userId, db]);
-
-
-  // Load video history from Firestore and set initial video
-  useEffect(() => {
-    if (!userId || !db) return;
-
-    const historyRef = collection(db, 'users', userId, 'history');
-    const q = query(historyRef, orderBy('timestamp', 'desc'), limit(100));
+        setPlaylists(finalPlaylists);
+        setPlaylistTabs(finalTabs);
+      } catch (error) {
+        console.error("Error fetching data from local database:", error);
+        alert("Failed to load data from local database. Please check the console for details.");
+      }
+    };
     
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const history = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setVideoHistory(history);
+    loadData();
+  }, [userId, isFirebaseInitialized]);
 
-      if (initialVideoLoaded.current || playlists.length === 0 || !playlists.some(p => p.videos.length > 0)) {
-        return;
-      }
-      
-      let loadedSuccessfully = false;
 
-      if (history.length > 0) {
-        const lastEntry = history[0];
-        const playlistIndex = playlists.findIndex(p => p.id === lastEntry.playlistId);
-        if (playlistIndex !== -1) {
-          const targetPlaylist = playlists[playlistIndex];
-          const videoIndex = targetPlaylist.videos.findIndex(v => v.id === lastEntry.videoId);
-          if (videoIndex !== -1) {
-            const lastFilter = lastEntry.filter || 'all'; 
-            if (!playlistShuffleOrders.current[targetPlaylist.id]?.[lastFilter] || playlistShuffleOrders.current[targetPlaylist.id][lastFilter].length !== (lastFilter === 'all' ? targetPlaylist.videos.length : targetPlaylist.groups[lastFilter]?.videos.length || 0)) {
-              playlistShuffleOrders.current = {
-                ...playlistShuffleOrders.current,
-                [targetPlaylist.id]: {
-                  ...playlistShuffleOrders.current[targetPlaylist.id],
-                  [lastFilter]: generateNewShuffleOrder(targetPlaylist, lastFilter, videoIndex)
-                }
-              };
-            }
-            
-            const currentShuffleOrder = playlistShuffleOrders.current[targetPlaylist.id][lastFilter];
-            const positionInShuffle = currentShuffleOrder.indexOf(videoIndex);
+  // Load video history and set initial video (simplified for local database)
+  useEffect(() => {
+    if (!userId || !isFirebaseInitialized || playlists.length === 0) return;
 
-            if (positionInShuffle !== -1) {
-              setCurrentPlaylistIndex(playlistIndex);
-              setCurrentVideoIndex(videoIndex);
-              setActiveShuffleOrder(currentShuffleOrder);
-              setCurrentShufflePosition(positionInShuffle);
-              setPlaylistFilters(prev => ({ ...prev, [targetPlaylist.id]: lastFilter }));
-              playlistShufflePositions.current = {
-                ...playlistShufflePositions.current,
-                [targetPlaylist.id]: {
-                  ...playlistShufflePositions.current[targetPlaylist.id],
-                  [lastFilter]: positionInShuffle
-                }
-              };
-              loadedSuccessfully = true;
-            }
+    // TODO: Add video history API endpoint and load from local database
+    // For now, just set empty history and start with first playlist
+    setVideoHistory([]);
+
+    if (initialVideoLoaded.current || !playlists.some(p => p.videos.length > 0)) {
+      return;
+    }
+    
+    // Start with first playlist that has videos
+    const memeSongsIndex = playlists.findIndex(p => p.id === "PLV2ewAgCPCq0DVamOw2sQSAVdFVjA6x78");
+    const targetPlaylistIndex = memeSongsIndex !== -1 ? memeSongsIndex : 0;
+    const targetPlaylist = playlists[targetPlaylistIndex];
+    
+    if (targetPlaylist && targetPlaylist.videos.length > 0) {
+      if (!playlistShuffleOrders.current[targetPlaylist.id]?.['all'] || playlistShuffleOrders.current[targetPlaylist.id]['all'].length !== targetPlaylist.videos.length) {
+        playlistShuffleOrders.current = {
+          ...playlistShuffleOrders.current,
+          [targetPlaylist.id]: {
+            ...playlistShuffleOrders.current[targetPlaylist.id],
+            'all': generateNewShuffleOrder(targetPlaylist, 'all')
           }
-        }
+        };
       }
 
-      if (!loadedSuccessfully) {
-        const memeSongsIndex = playlists.findIndex(p => p.id === "PLV2ewAgCPCq0DVamOw2sQSAVdFVjA6x78");
-        const targetPlaylistIndex = memeSongsIndex !== -1 ? memeSongsIndex : 0;
-        const targetPlaylist = playlists[targetPlaylistIndex];
-        
-        if (targetPlaylist && targetPlaylist.videos.length > 0) {
-          if (!playlistShuffleOrders.current[targetPlaylist.id]?.['all'] || playlistShuffleOrders.current[targetPlaylist.id]['all'].length !== targetPlaylist.videos.length) {
-            playlistShuffleOrders.current = {
-              ...playlistShuffleOrders.current,
-              [targetPlaylist.id]: {
-                ...playlistShuffleOrders.current[targetPlaylist.id],
-                'all': generateNewShuffleOrder(targetPlaylist, 'all')
-              }
-            };
-          }
-
-          const currentShuffleOrder = playlistShuffleOrders.current[targetPlaylist.id]['all'];
-          const randomIndex = Math.floor(Math.random() * currentShuffleOrder.length);
-          const randomVideoIndex = currentShuffleOrder[randomIndex];
-          
-          setCurrentPlaylistIndex(targetPlaylistIndex);
-          setCurrentVideoIndex(randomVideoIndex);
-          setActiveShuffleOrder(currentShuffleOrder);
-          setCurrentShufflePosition(randomIndex);
-          setPlaylistFilters(prev => ({ ...prev, [targetPlaylist.id]: 'all' }));
-          playlistShufflePositions.current = {
-            ...playlistShufflePositions.current,
-            [targetPlaylist.id]: {
-              ...playlistShufflePositions.current[targetPlaylist.id],
-              'all': randomIndex
-            }
-          };
-          
-          saveVideoHistory(
-            targetPlaylist.videos[randomVideoIndex].id,
-            targetPlaylist.videos[randomVideoIndex].title,
-            targetPlaylist.id,
-            targetPlaylist.name,
-            'all'
-          );
-          loadedSuccessfully = true;
-        }
-      }
+      const currentShuffleOrder = playlistShuffleOrders.current[targetPlaylist.id]['all'];
+      const randomIndex = Math.floor(Math.random() * currentShuffleOrder.length);
+      const randomVideoIndex = currentShuffleOrder[randomIndex];
       
-      if (loadedSuccessfully) {
-        initialVideoLoaded.current = true;
-      }
-
-    }, (error) => {
-      console.error("Error fetching video history:", error);
-      alert("Failed to load video history from Firestore.");
-    });
-
-    return () => unsubscribe();
-  }, [userId, playlists, db]);
+      setCurrentPlaylistIndex(targetPlaylistIndex);
+      setCurrentVideoIndex(randomVideoIndex);
+      setActiveShuffleOrder(currentShuffleOrder);
+      setCurrentShufflePosition(randomIndex);
+      setPlaylistFilters(prev => ({ ...prev, [targetPlaylist.id]: 'all' }));
+      playlistShufflePositions.current = {
+        ...playlistShufflePositions.current,
+        [targetPlaylist.id]: {
+          ...playlistShufflePositions.current[targetPlaylist.id],
+          'all': randomIndex
+        }
+      };
+      
+      initialVideoLoaded.current = true;
+    }
+  }, [userId, playlists, isFirebaseInitialized]);
 
   // One-time migration: move all starred videos into yellow group and clear starred arrays
   useEffect(() => {
@@ -1799,21 +1297,13 @@ export default function YouTubePlaylistPlayer() {
     }
   }, [isBulkAdding, bulkAddProgress]);
 
-  // **STAGED SAVE** - Wait for quiet period before saving to Firebase
+  // **STAGED SAVE** - Wait for quiet period before saving to local database
   // This ensures all rapid changes are captured before saving
   useEffect(() => {
     if (!userId || !initialVideoLoaded.current || !isFirebaseInitialized) {
       if (!userId) console.log(`⏭️ Staged save skipped: no userId`);
       if (!initialVideoLoaded.current) console.log(`⏭️ Staged save skipped: initial video not loaded yet (initialVideoLoaded=${initialVideoLoaded.current})`);
-      if (!isFirebaseInitialized) console.log(`⏭️ Staged save skipped: Firebase not initialized yet (isFirebaseInitialized=${isFirebaseInitialized})`);
-      return;
-    }
-    
-    // Get db instance - it should be available if isFirebaseInitialized is true
-    // db is a module-level variable, so we need to check it directly
-    const currentDb = db;
-    if (!currentDb) {
-      console.error(`❌ Staged save: db is undefined even though Firebase is initialized!`);
+      if (!isFirebaseInitialized) console.log(`⏭️ Staged save skipped: app not initialized yet (isFirebaseInitialized=${isFirebaseInitialized})`);
       return;
     }
     
@@ -1823,15 +1313,11 @@ export default function YouTubePlaylistPlayer() {
       clearTimeout(mainDataSaveTimer.current);
     }
 
-    const performStagedSave = () => {
+    const performStagedSave = async () => {
       // Always use the latest ref values, not the state at effect time
       // This ensures we save the final state after all rapid changes
       const playlistsToSave = latestPlaylistsRef.current || playlists;
       const tabsToSave = latestPlaylistTabsRef.current || playlistTabs;
-      // Note: customColors and colorOrder are captured from closure, which is fine since they change less frequently
-      
-      // Use currentDb from the closure
-      const userDocRef = firestoreDoc(currentDb, 'users', userId);
       const playlistCounts = playlistsToSave.map(p => ({ 
         id: p.id, 
         name: p.name, 
@@ -1966,12 +1452,15 @@ export default function YouTubePlaylistPlayer() {
         console.error(`   This will cause save to fail. Consider splitting large playlists or storing videos in subcollections.`);
       }
       
-      updateDoc(userDocRef, {
-        playlists: optimizedPlaylists,
-        playlistTabs: tabsToSave,
-        customColors: customColors
-      }).then(() => {
-        console.log(`✅ Successfully saved playlists to Firestore (including groups)`);
+      try {
+        await saveUserData(userId, {
+          playlists: optimizedPlaylists,
+          playlistTabs: tabsToSave,
+          customColors: customColors,
+          colorOrder: colorOrder
+        });
+        
+        console.log(`✅ Successfully saved playlists to local database (including groups)`);
         // Log what was actually saved to verify - use optimizedPlaylists
         optimizedPlaylists.forEach(p => {
           if (p.groups) {
@@ -1979,35 +1468,17 @@ export default function YouTubePlaylistPlayer() {
               `${color}: ${Array.isArray(group.videos) ? group.videos.length : 'invalid'}`
             ).join(', ');
             console.log(`  ✅ Confirmed saved ${p.name}: videos=${p.videos?.length || 0}, groups=[${groupCounts}]`);
-            
-            // Verify all group IDs have corresponding video objects
-            // Videos are now stored as string IDs, so check directly
-            const videoIdsInArray = new Set((p.videos || []).map(v => {
-              if (typeof v === 'string') return v;
-              return v?.id || v;
-            }).filter(Boolean));
-            Object.entries(p.groups).forEach(([color, group]) => {
-              if (Array.isArray(group.videos)) {
-                const orphaned = group.videos.filter(id => !videoIdsInArray.has(id));
-                if (orphaned.length > 0) {
-                  console.error(`  ❌ ERROR: ${p.name} ${color} group still has ${orphaned.length} orphaned IDs after pre-save fix!`, orphaned);
-                }
-              }
-            });
           } else {
             console.log(`  ✅ Confirmed saved ${p.name}: videos=${p.videos?.length || 0}, groups=missing`);
           }
         });
-        // Keep the flag for a short time to ignore immediate snapshot updates
-        setTimeout(() => {
-          isSavingRef.current = false;
-          console.log(`🔓 Save lock released - snapshots will now be accepted`);
-        }, 2000); // Ignore snapshots for 2 seconds after save (increased from 1 second)
-      }).catch(error => {
-        console.error("❌ CRITICAL ERROR saving main data to Firestore:", error);
+        
+        isSavingRef.current = false;
+        lastSaveTimeRef.current = Date.now();
+      } catch (error) {
+        console.error("❌ CRITICAL ERROR saving main data to local database:", error);
         console.error("  Error details:", {
           message: error.message,
-          code: error.code,
           stack: error.stack
         });
         console.error("  Attempted to save:", {
@@ -2015,18 +1486,8 @@ export default function YouTubePlaylistPlayer() {
           totalVideos: optimizedPlaylists.reduce((sum, p) => sum + (p.videos?.length || 0), 0),
           estimatedSize: `${(estimatedSize / 1024).toFixed(2)} KB`
         });
-        
-        // If document is too large, suggest solutions
-        if (error.code === 'resource-exhausted' || error.message?.includes('exceeds the maximum allowed size')) {
-          console.error("  💡 SOLUTION: Document size exceeds Firestore 1MB limit.");
-          console.error("  💡 Consider:");
-          console.error("    1. Splitting large playlists into smaller ones");
-          console.error("    2. Storing videos in subcollections instead of main document");
-          console.error("    3. Removing old/unused playlists");
-          console.error("    4. Storing only video IDs (metadata fetched from videoMetadata subcollection)");
-        }
         isSavingRef.current = false;
-      });
+      }
     };
 
     // Wait for a "quiet period" - no changes for 2 seconds
@@ -2051,27 +1512,22 @@ export default function YouTubePlaylistPlayer() {
         clearTimeout(mainDataSaveTimer.current);
       }
     };
-  }, [playlists, playlistTabs, customColors, userId, isFirebaseInitialized]);
+  }, [playlists, playlistTabs, customColors, colorOrder, userId, isFirebaseInitialized]);
 
   // **OPTIMIZED** Save high-frequency video progress data with debouncing and targeted updates
   useEffect(() => {
-      if (!userId || Object.keys(videoProgress).length === 0 || !db) return;
+      if (!userId || Object.keys(videoProgress).length === 0 || !isFirebaseInitialized) return;
 
       if (progressSaveTimer.current) {
           clearTimeout(progressSaveTimer.current);
       }
 
-      progressSaveTimer.current = setTimeout(() => {
-          const userDocRef = firestoreDoc(db, 'users', userId);
-          const updates = {};
-          // Create dot notation paths for each updated video progress
-          for (const videoId in videoProgress) {
-              updates[`videoProgress.${videoId}`] = videoProgress[videoId];
-          }
-          if (Object.keys(updates).length > 0) {
-            updateDoc(userDocRef, updates).catch(error => {
-                console.error("Error saving video progress to Firestore:", error);
-            });
+      progressSaveTimer.current = setTimeout(async () => {
+          try {
+            await saveVideoProgress(userId, videoProgress);
+            console.log(`✅ Saved video progress for ${Object.keys(videoProgress).length} videos`);
+          } catch (error) {
+            console.error("Error saving video progress to local database:", error);
           }
       }, 2000); // Longer debounce for progress
 
@@ -2080,11 +1536,11 @@ export default function YouTubePlaylistPlayer() {
               clearTimeout(progressSaveTimer.current);
           }
       };
-  }, [videoProgress, userId, db]);
+  }, [videoProgress, userId, isFirebaseInitialized]);
 
-  // Fetch and cache video metadata
+  // Fetch and cache video metadata (simplified for local database - uses localStorage cache only)
   useEffect(() => {
-    if (!userId || !currentVideoId || !db) {
+    if (!userId || !currentVideoId) {
       setVideoPublishedYear('');
       setVideoAuthorName('');
       setVideoViewCount('');
@@ -2092,65 +1548,21 @@ export default function YouTubePlaylistPlayer() {
       return;
     }
 
-    const fetchVideoMetadata = async () => {
-      // CRITICAL: Check in-memory cache FIRST to avoid Firestore reads
-      const cachedMeta = metadataCacheInMemory.current.get(currentVideoId);
-      if (cachedMeta) {
-        // Use cached metadata - no Firestore read needed
-        setVideoPublishedYear(cachedMeta.publishedYear || '');
-        setVideoAuthorName(cachedMeta.author || '');
-        setVideoViewCount(cachedMeta.viewCount || '');
-        setVideoChannelId(cachedMeta.channelId || '');
-        return; // No need to set up listener if we have cached data
-      }
-      
-      // Only set up Firestore listener if we haven't checked this video yet
-      // AND we don't have it in cache
-      if (!metadataCacheCheckedThisSession.current.has(currentVideoId)) {
-        const videoMetaRef = firestoreDoc(db, 'users', userId, 'videoMetadata', currentVideoId);
-        // Use getDoc instead of onSnapshot to avoid persistent listeners (reduces reads)
-        getDoc(videoMetaRef).then((snap) => {
-          if (snap.exists()) {
-            const meta = snap.data();
-            // Store in in-memory cache for future use
-            metadataCacheInMemory.current.set(currentVideoId, meta);
-            metadataCacheCheckedThisSession.current.add(currentVideoId);
-            // Persist to localStorage
-            persistMetadataCache();
-            // Use whatever metadata exists in cache - don't make API calls for missing data
-            setVideoPublishedYear(meta.publishedYear || '');
-            setVideoAuthorName(meta.author || '');
-            setVideoViewCount(meta.viewCount || '');
-            setVideoChannelId(meta.channelId || '');
-          } else {
-            // Mark as checked even if not found (to prevent future reads)
-            metadataCacheCheckedThisSession.current.add(currentVideoId);
-            metadataCacheInMemory.current.set(currentVideoId, {}); // Store empty object
-            // No metadata exists in cache - set empty values
-            setVideoPublishedYear('');
-            setVideoAuthorName('');
-            setVideoViewCount('');
-            setVideoChannelId('');
-          }
-        }).catch(error => {
-          console.warn(`⚠️ Error fetching video metadata:`, error);
-          // Set empty values on error
-          setVideoPublishedYear('');
-          setVideoAuthorName('');
-          setVideoViewCount('');
-          setVideoChannelId('');
-        });
-      } else {
-        // Already checked this session but not in cache - set empty values
-        setVideoPublishedYear('');
-        setVideoAuthorName('');
-        setVideoViewCount('');
-        setVideoChannelId('');
-      }
-    };
-
-    fetchVideoMetadata();
-  }, [currentVideoId, userId, db]);
+    // Check in-memory cache (loaded from localStorage)
+    const cachedMeta = metadataCacheInMemory.current.get(currentVideoId);
+    if (cachedMeta) {
+      setVideoPublishedYear(cachedMeta.publishedYear || '');
+      setVideoAuthorName(cachedMeta.author || '');
+      setVideoViewCount(cachedMeta.viewCount || '');
+      setVideoChannelId(cachedMeta.channelId || '');
+    } else {
+      // No metadata in cache - set empty values
+      setVideoPublishedYear('');
+      setVideoAuthorName('');
+      setVideoViewCount('');
+      setVideoChannelId('');
+    }
+  }, [currentVideoId, userId]);
 
   // Reset visibleCount when videoFilter or playlist changes, but restore from scroll memory
   useEffect(() => {
@@ -2162,23 +1574,10 @@ export default function YouTubePlaylistPlayer() {
 
   // Save video history
   const saveVideoHistory = async (videoId, title, playlistId, playlistName, filter = 'all') => {
-    if (!userId || !videoId || !db) return;
-
-    const historyRef = collection(db, 'users', userId, 'history');
-    const historyEntry = { videoId, title, playlistId, playlistName, filter, timestamp: new Date().toISOString() };
-    const existingEntry = videoHistory.find(entry => entry.videoId === videoId);
-    if (existingEntry) {
-      await firestoreSetDoc(firestoreDoc(db, 'users', userId, 'history', existingEntry.id), { ...existingEntry, timestamp: historyEntry.timestamp, filter });
-      return;
-    }
-
-    if (videoHistory.length >= 100) {
-      const oldestEntry = videoHistory[videoHistory.length - 1];
-      await deleteDoc(firestoreDoc(db, 'users', userId, 'history', oldestEntry.id));
-    }
-
-    const newEntryRef = firestoreDoc(historyRef);
-    await firestoreSetDoc(newEntryRef, historyEntry);
+    // TODO: Add video history API endpoint for local database
+    // For now, this is a no-op
+    if (!userId || !videoId) return;
+    console.log(`📝 Video history: ${title} (${videoId}) - not saved (local DB history not implemented yet)`);
   };
 
   // **OPTIMIZED** Video progress handling with local storage
@@ -2454,8 +1853,9 @@ export default function YouTubePlaylistPlayer() {
         const cachedDurations = {};
         const idsNeedingDuration = [];
         
-        if (db && userId && videoIds.length > 0) {
-          const metadataCacheRef = collection(db, 'users', userId, 'videoMetadata');
+        // TODO: Add metadata caching to local database if needed
+        if (false && userId && videoIds.length > 0) {
+          // const metadataCacheRef = collection(db, 'users', userId, 'videoMetadata');
           // Batch check (30 items per query limit)
           for (let i = 0; i < videoIds.length; i += 30) {
             const batchIds = videoIds.slice(i, i + 30);
@@ -2503,11 +1903,12 @@ export default function YouTubePlaylistPlayer() {
             });
             
             // Cache the durations we just fetched
-            if (db && userId) {
+            // TODO: Add metadata caching to local database if needed
+            if (false && userId) {
               setTimeout(async () => {
                 try {
-                  const metadataCacheRef = collection(db, 'users', userId, 'videoMetadata');
-                  const batch = writeBatch(db);
+                  // const metadataCacheRef = collection(db, 'users', userId, 'videoMetadata');
+                  // const batch = writeBatch(db);
                   let batchCount = 0;
                   durData.items.forEach(item => {
                     const metaRef = doc(db, 'users', userId, 'videoMetadata', item.id);
@@ -2836,14 +2237,10 @@ export default function YouTubePlaylistPlayer() {
           groups: {} // Clear all colored folder data
         }));
         
-        // Update Firebase with cleaned data
-        if (userId && db) {
-          const userRef = firestoreDoc(db, 'users', userId);
-          
-          // Update only playlists, preserve everything else using merge
-          await firestoreSetDoc(userRef, {
-            playlists: cleanedPlaylists
-          }, { merge: true });
+        // Data is saved automatically via the staged save effect
+        // No need to manually save here - the main save handler will pick up the changes
+        if (false && userId) {
+          // Data saved via API routes automatically
         }
         
         alert('Colored folder data and added playlists wiped! Tab data preserved.');
@@ -2856,7 +2253,7 @@ export default function YouTubePlaylistPlayer() {
 
   // **OPTIMIZED** Effect to fetch all videos for a playlist and initialize/update session-specific shuffle order
   useEffect(() => {
-    if (!userId || !db) return;
+    if (!userId || !isFirebaseInitialized) return;
     
     // Process playlists - during bulk add, allow concurrent fetches
     const processPlaylists = async () => {
@@ -2920,12 +2317,12 @@ export default function YouTubePlaylistPlayer() {
     };
     
     processPlaylists();
-  }, [playlists, userId, currentPlaylistIndex, chronologicalFilter, db, bulkAddProgress]);
+  }, [playlists, userId, currentPlaylistIndex, chronologicalFilter, isFirebaseInitialized, bulkAddProgress]);
 
   // **OPTIMIZED** Fetches all videos and their details, using a permanent cache to minimize API calls
   const fetchAllVideos = async (playlistId, playlistIndex) => {
-    if (!db) {
-      console.log('🚫 Skipping fetch for', playlistId, '- database not available');
+    if (!isFirebaseInitialized) {
+      console.log('🚫 Skipping fetch for', playlistId, '- app not initialized');
       return Promise.resolve(); // Return resolved promise instead of undefined
     }
     
@@ -2999,11 +2396,12 @@ export default function YouTubePlaylistPlayer() {
           allVideoSnippets.push(...videoSnippets);
           
           // Immediately cache titles from playlistItems to videoMetadata (async, non-blocking)
-          if (videoSnippets.length > 0 && db && userId) {
+          // TODO: Add metadata caching to local database if needed
+          if (videoSnippets.length > 0 && false && userId) {
             setTimeout(async () => {
               try {
-                const metadataCacheRef = collection(db, 'users', userId, 'videoMetadata');
-                const batch = writeBatch(db);
+                // const metadataCacheRef = collection(db, 'users', userId, 'videoMetadata');
+                // const batch = writeBatch(db);
                 let batchCount = 0;
                 
                 for (const snippet of videoSnippets) {
@@ -3082,8 +2480,9 @@ export default function YouTubePlaylistPlayer() {
       });
       
       // Only query Firestore for IDs we haven't checked yet this session
-      if (idsToCheckInFirestore.length > 0) {
-        const metadataCacheRef = collection(db, 'users', userId, 'videoMetadata');
+      // TODO: Add metadata caching to local database if needed
+      if (false && idsToCheckInFirestore.length > 0) {
+        // const metadataCacheRef = collection(db, 'users', userId, 'videoMetadata');
         
         // Firestore 'in' queries are limited to 30 items, so we batch our checks
         for (let i = 0; i < idsToCheckInFirestore.length; i += 30) {
@@ -3280,8 +2679,8 @@ export default function YouTubePlaylistPlayer() {
 
   const handleAddPlaylist = async () => {
     if (!newPlaylistId || !userId) return;
-    if (!db) {
-      alert('⚠️ Database not ready yet. Please wait a moment and try again.');
+    if (!isFirebaseInitialized) {
+      alert('⚠️ App not ready yet. Please wait a moment and try again.');
       return;
     }
     try {
@@ -3387,8 +2786,8 @@ export default function YouTubePlaylistPlayer() {
       alert('Please enter at least one playlist ID/URL.');
       return;
     }
-    if (!db) {
-      alert('⚠️ Database not ready yet. Please wait a moment and try again.');
+    if (!isFirebaseInitialized) {
+      alert('⚠️ App not ready yet. Please wait a moment and try again.');
       return;
     }
 
@@ -3775,15 +3174,8 @@ export default function YouTubePlaylistPlayer() {
           : p
       ));
       
-      // Save to Firebase
-      if (userId && db) {
-        await firestoreSetDoc(firestoreDoc(db, 'users', userId, 'playlists', parentPlaylist.id), {
-          ...parentPlaylist,
-          videos: updatedVideos,
-          groups: updatedGroups
-        });
-        console.log('Saved to Firebase');
-      }
+      // Data is saved automatically via the staged save effect
+      // No need to manually save - the staged save effect will handle it
       
       if (hasBeenConverted) {
         console.log(`Deleted colored folder group: ${coloredFolder.name} (videos preserved in converted playlist)`);
@@ -4097,14 +3489,8 @@ export default function YouTubePlaylistPlayer() {
         return updated;
       });
 
-      // Save to Firebase
-      if (userId && db) {
-        await firestoreSetDoc(firestoreDoc(db, 'users', userId, 'playlists', newPlaylist.id), {
-          ...newPlaylist,
-          createdAt: new Date().toISOString()
-        });
-        console.log('Saved to Firebase');
-      }
+      // Data is saved automatically via the staged save effect
+      // No need to manually save - the staged save effect will handle it
 
       console.log(`Converted colored folder to regular playlist: ${newPlaylist.name}`);
     } catch (error) {

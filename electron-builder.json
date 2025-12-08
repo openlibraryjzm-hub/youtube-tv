@@ -1,0 +1,60 @@
+{
+  "appId": "com.youtube-tv.app",
+  "productName": "YouTube TV",
+  "directories": {
+    "output": "dist"
+  },
+  "files": [
+    "app/**/*",
+    "lib/**/*",
+    "public/**/*",
+    "package.json",
+    "next.config.mjs",
+    "electron/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "default-channels.json",
+      "to": "default-channels.json"
+    },
+    {
+      "from": ".next/standalone",
+      "to": "app/.next/standalone",
+      "filter": [
+        "**/*",
+        "!**/node_modules/.cache/**",
+        "!**/node_modules/**/.git/**"
+      ]
+    },
+    {
+      "from": ".next/static",
+      "to": "app/.next/static"
+    }
+  ],
+  "asarUnpack": [
+    "**/node_modules/better-sqlite3/**",
+    "**/node_modules/@next/swc-*/**"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ],
+    "forceCodeSigning": false,
+    "signAndEditExecutable": false,
+    "verifyUpdateCodeSignature": false
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "YouTube TV",
+    "deleteAppDataOnUninstall": false
+  },
+  "publish": null,
+  "afterPack": "./electron-builder-hooks.js"
+}
+
