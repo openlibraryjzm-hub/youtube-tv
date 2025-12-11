@@ -139,6 +139,10 @@ A desktop application that:
    - **Representative Thumbnails:** Set any video as playlist cover image
    - **Drag & Drop:** Reorder videos within playlists
    - **Bulk Add:** Add multiple playlists at once via bulk add modal
+   - **Video Metadata:** Automatic fetching when adding playlists, manual fetch button per playlist
+     - Metadata (title, author, views, channelId, publishedYear) stored permanently in database
+     - ONE-TIME fetch per video (like thumbnails - fetch once, use forever)
+     - Displayed in video grid and current video info card
    - **Settings:** View persistent user ID, copy ID, configuration options
 
 ### Visual Experience
@@ -271,19 +275,22 @@ Users do NOT need:
 
 **YouTube Data API v3:**
 - **Purpose:** Fetch playlist data, video metadata
-- **Usage:** Cached aggressively to minimize quota usage
+- **Usage:** Cached permanently in database (ONE-TIME fetch per video)
 - **Key Endpoints:**
-  - `playlistItems.list` - Get videos in playlist
-  - `videos.list` - Get video details (title, duration, author, view count, etc.)
+  - `playlistItems.list` - Get videos in playlist (titles included, no extra cost)
+  - `videos.list` - Get video details (title, duration, author, view count, etc.) - 1 quota unit per call, up to 50 videos per call
   - `channels.list` - Get channel information
 - **Caching Strategy:**
-  - Video metadata cached in database (title, duration, author, year, view count)
-  - Only fetches if not in cache
-  - Tracks fetched items in session to prevent duplicate calls
+  - Video metadata stored permanently in `video_metadata` table (like thumbnails)
+  - ONE-TIME fetch per video - stored forever, never auto-refetched
+  - Automatic fetching when adding playlists (single or bulk)
+  - Manual "Fetch Metadata" button per playlist
+  - Only fetches if not in database
 - **Quota Management:**
-  - Critical constraint: Daily API quota limits
-  - Aggressive caching reduces API calls by 90%+
-  - Only fetches when absolutely necessary
+  - ~400 API calls for 20,000 videos (one-time cost)
+  - Free tier: 10,000 units/day (covers all metadata in one day)
+  - After initial fetch: ZERO cost (stored permanently)
+- **User Preference:** OK with outdated metadata - just want it stored permanently
 - **API Key:** Required but managed separately (not bundled in app, user provides)
 
 **YouTube IFrame Player API:**
@@ -866,6 +873,34 @@ pub struct UserData {
 
 ### Database Schema
 
+**Tables:**
+
+1. **`users`** - User-specific settings
+   - `user_id` (PRIMARY KEY)
+   - `custom_colors` (JSON)
+   - `color_order` (JSON)
+   - `playlist_tabs` (JSON)
+   - `video_progress` (JSON)
+   - `created_at`, `updated_at`
+
+2. **`playlists`** - All playlists
+   - `id` (AUTOINCREMENT PRIMARY KEY)
+   - `user_id` (FOREIGN KEY)
+   - `playlist_id` (YouTube PL* or local ID)
+   - `name`, `videos` (JSON), `groups` (JSON), `starred` (JSON)
+   - `is_default`, `can_delete`
+   - `category`, `description`, `thumbnail`
+   - `is_converted_from_colored_folder`, `representative_video_id`
+   - `created_at`, `updated_at`
+
+3. **`video_metadata`** - Video metadata (PERMANENT STORAGE - like thumbnails)
+   - `video_id` (PRIMARY KEY)
+   - `title`, `author`, `view_count`, `channel_id`, `published_year`
+   - `duration` (INTEGER)
+   - `fetched_at`, `updated_at`
+   - **Purpose:** ONE-TIME fetch per video, stored forever, never auto-refetched
+   - **Cost:** ~400 API calls for 20,000 videos (one-time, free tier covers it)
+
 **Users Table:**
 ```sql
 CREATE TABLE users (
@@ -898,6 +933,22 @@ CREATE TABLE playlists (
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 ```
+
+**Video Metadata Table (PERMANENT STORAGE):**
+```sql
+CREATE TABLE video_metadata (
+    video_id TEXT PRIMARY KEY,
+    title TEXT,
+    author TEXT,
+    view_count TEXT,
+    channel_id TEXT,
+    published_year TEXT,
+    duration INTEGER DEFAULT 1,
+    fetched_at INTEGER,
+    updated_at INTEGER
+);
+```
+**Purpose:** Stores video metadata (title, author, views, etc.) permanently - ONE-TIME fetch per video, never auto-refetched (like thumbnails). Fetched automatically when adding playlists, or manually via "Fetch Metadata" button.
 
 ### Data Flow Examples
 
@@ -1081,15 +1132,19 @@ src-tauri\target\release\app.exe
 
 ### Planned Features
 
-1. **Playlist Import/Export:**
+1. **Playlist Import/Export:** ✅ **COMPLETE**
    - **Import:** Users can import JSON playlist files
-     - Drag-and-drop or file picker
-     - Merge with existing playlists
+     - Smart import auto-detects playlist vs tab files
+     - File picker via Tauri dialog
+     - Merge with existing playlists (skips duplicates)
      - Validate structure before import
    - **Export:** Export playlists to JSON
+     - Export individual playlists (`name - playlist.json`)
+     - Export full tab structures (`name - tab.json`)
      - Backup user data
      - Share playlists between users
      - Full playlist structure with colored folders
+   - **Overwrite:** Replace existing playlist via import
 
 2. **Enhanced Organization:**
    - Nested colored folders

@@ -1,8 +1,10 @@
 # AI Agent Master Onboarding Prompt
 
 **🎯 ULTIMATE PROMPT FOR AI AGENTS**  
-**Last Updated:** 2025-01-09  
+**Last Updated:** 2025-01-12  
 **Status:** ✅ **PRODUCTION READY - FULLY FUNCTIONAL**
+
+> **📝 Documentation Preference:** When answering questions or providing information, prefer updating existing documentation files rather than creating new ones. Only create new documentation files when explicitly requested by the user.
 
 > **Use this prompt when starting a new conversation to get any AI agent fully up to speed on the YouTube TV project. This document is self-contained with all essential information. For deep dives, see [PROJECT-MASTER-DOCUMENTATION.md](./PROJECT-MASTER-DOCUMENTATION.md).**
 
@@ -49,7 +51,7 @@ A desktop application that transforms YouTube playlists into a Netflix-like, lea
 
 ### User Experience
 - **Main Interface:** Full-screen YouTube player (left) + Splitscreen menu (right)
-- **Core Features:** Watch videos, organize into colored folders, manage playlists, track progress
+- **Core Features:** Watch videos, organize into colored folders, manage playlists, track progress, import/export playlists and tabs, configure playlists with colored folders
 - **First Launch:** 20+ default playlists with 20,000+ videos load automatically
 - **Data Persistence:** All data saved locally, no cloud account needed
 
@@ -81,8 +83,9 @@ A desktop application that transforms YouTube playlists into a Netflix-like, lea
 - Uses system WebView (Edge WebView2 - pre-installed on Windows)
 
 ### External APIs
-- **YouTube Data API v3:** Fetch playlist data, video metadata (cached aggressively)
+- **YouTube Data API v3:** Fetch playlist data, video metadata (permanently cached in database)
 - **YouTube IFrame Player API:** Video playback
+- **Metadata Storage:** One-time fetch per video, stored in SQLite forever (like thumbnails)
 
 ---
 
@@ -417,6 +420,46 @@ pub fn get_user_data(user_id: String) -> Result<UserData, String> {
 - Provide fallback for dev mode
 - Use proper serialization (camelCase ↔ snake_case)
 
+---
+
+## 🎨 Recent Features (2025-01-12)
+
+### Configure Playlist Mode (Enhanced)
+- **Location:** Bulk Add Modal → "Configure Playlist" tab
+- **Modes:**
+  - **Create New Playlist:** Enter name, add source playlists with colors
+  - **Add to Existing Playlist:** Select from dropdown, add source playlists to existing colored folders
+- **Features:**
+  - Add multiple source playlist IDs
+  - Assign color to each source playlist
+  - Optional custom folder names for each colored folder
+  - **Smart Color Dropdown:** Shows custom folder names when existing playlist selected (e.g., "Favorites" instead of "Red")
+  - Color cycling: "Add Another" cycles through all 16 colors
+  - Preserves existing videos and groups when updating existing playlist
+- **Result:** Single playlist with colored folders, each populated from its source
+
+### Video Metadata System (PERMANENT STORAGE)
+- **Database Storage:** `video_metadata` table stores title, author, views, channelId, publishedYear, duration
+- **Automatic Fetching:** Metadata fetched automatically when adding playlists (single or bulk add)
+- **Manual Fetching:** "Fetch Metadata" button (Database icon) in each playlist side menu
+- **ONE-TIME FETCH:** Each video's metadata fetched once, stored permanently, never auto-refetched
+- **Cost:** ~400 API calls for 20,000 videos (one-time, free tier covers it in one day)
+- **Display:** Metadata shown in video grid (author, views) and current video info card
+- **User Preference:** OK with outdated info - just want it stored permanently (like thumbnails)
+
+### Playlist Import/Export
+- **Smart Import:** Auto-detects playlist vs tab files from single button
+- **Export Playlist:** Download individual playlist as JSON file (`name - playlist.json`)
+- **Export Tab:** Download full tab structure with all playlists (`name - tab.json`)
+- **Overwrite Playlist:** Replace existing playlist configuration via import
+- **Immediate UI Refresh:** Changes appear instantly without app restart
+
+### UI Improvements
+- **Show Colored Folders Toggle:** Default OFF (was ON)
+- **Export Filenames:** Include type suffix for clarity
+- **Modal UI:** Fixed dropdown text visibility, improved layout
+- **Metadata Display:** Author and views shown below video titles in grid
+
 **Adding a New Tauri Command:**
 
 1. **Define in Rust (`src-tauri/src/db.rs`):**
@@ -652,6 +695,10 @@ if (orphanedIds.length > 0) {
 ```powershell
 # Terminal 1
 npm run dev              # Next.js dev server (http://localhost:3000)
+
+npx tauri dev            # Tauri dev mode (FAST - hot reload, no rebuild needed)
+                         # Opens window automatically, connects to Next.js dev server
+                         # Use this for development instead of rebuilding each time!
 
 # Terminal 2
 npx tauri dev            # Tauri dev mode (opens window, hot reload)
@@ -1003,20 +1050,29 @@ What would you like to work on?
 - Deletes older session tags (local and remote)
 - Prevents tag clutter
 
-**push-to-github.ps1** - Push to GitHub (AI updates commit message before user runs)
+**push-documentation-updates.ps1** - Push to GitHub (manual protocol) ⭐ **Preferred**
 ```powershell
-.\push-to-github.ps1
+.\push-documentation-updates.ps1
 ```
 **Protocol:**
-- When user requests a push, AI analyzes all changes since last push
-- AI updates the script's commit message with current, accurate information
-- User then runs the script to commit and push
-- Ensures commit messages are always accurate and reflect current state
+- User manually updates the commit message in the script before running
+- User runs the script to commit and push
+- Simple, reliable approach that gives user full control
 
 **What it does:**
 - Stages all changes (`git add .`)
-- Commits with AI-updated message
+- Commits with message from script (user updates manually)
 - Pushes to GitHub (`git push origin main`)
+
+**push-to-github.ps1** - Push to GitHub (AI auto-update protocol - currently not working)
+```powershell
+.\push-to-github.ps1
+```
+**What it does:**
+- Stages all changes (`git add .`)
+- Commits with AI-updated message (intended to be auto-updated by AI)
+- Pushes to GitHub (`git push origin main`)
+- **Note:** Currently not working; use `push-documentation-updates.ps1` instead
 
 ### Legacy Scripts (Electron Era - Outdated)
 

@@ -1,0 +1,17 @@
+{
+  // Auto-save settings for maximum protection
+  "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 20000,
+  
+  // Additional safety settings
+  "files.hotExit": "onExitAndWindowClose",
+  "files.saveConflictResolution": "askUser",
+  
+  // Backup settings
+  "files.enableTrash": true,
+  "files.trimTrailingWhitespace": false,
+  
+  // Editor settings
+  "editor.formatOnSave": false,
+  "editor.formatOnPaste": false
+}

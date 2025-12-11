@@ -66,6 +66,9 @@ import {
   ListFilter,
   GitMerge,
   Pin,
+  Download,
+  Upload,
+  Database,
 } from "lucide-react"
 // Firebase imports removed - using local database via API routes instead
 // import { collection, query, orderBy, limit, deleteDoc, setDoc, doc, onSnapshot, updateDoc, getDocs, writeBatch, where, deleteField } from "firebase/firestore";
@@ -457,7 +460,7 @@ export default function YouTubePlaylistPlayer() {
   const [showAddPlaylistModal, setShowAddPlaylistModal] = useState(false);
   const [renamingPlaylist, setRenamingPlaylist] = useState(null);
   const [playlistRenameInput, setPlaylistRenameInput] = useState("");
-  const [showColoredFolders, setShowColoredFolders] = useState(true);
+  const [showColoredFolders, setShowColoredFolders] = useState(false);
   const [showPlaylists, setShowPlaylists] = useState(true);
   const [sortMode, setSortMode] = useState('chronological');
   const [showColorPickerModal, setShowColorPickerModal] = useState(false);
@@ -479,6 +482,11 @@ export default function YouTubePlaylistPlayer() {
   const [selectedTargetColor, setSelectedTargetColor] = useState(null);
   const [showBulkAddModal, setShowBulkAddModal] = useState(false);
   const [bulkPlaylistIds, setBulkPlaylistIds] = useState(Array(10).fill(''));
+  const [bulkAddMode, setBulkAddMode] = useState('bulk'); // 'bulk' or 'configure'
+  const [configurePlaylistName, setConfigurePlaylistName] = useState('');
+  const [configurePlaylistEntries, setConfigurePlaylistEntries] = useState([{ id: '', color: 'red', folderName: '' }]);
+  const [configurePlaylistMode, setConfigurePlaylistMode] = useState('new'); // 'new' or 'existing'
+  const [configureSelectedPlaylistId, setConfigureSelectedPlaylistId] = useState('');
   const [isBulkAdding, setIsBulkAdding] = useState(() => {
     // Restore from sessionStorage on mount
     if (typeof window !== 'undefined') {
@@ -1729,7 +1737,7 @@ export default function YouTubePlaylistPlayer() {
       };
   }, [videoProgress, userId, isFirebaseInitialized]);
 
-  // Fetch and cache video metadata (simplified for local database - uses localStorage cache only)
+  // Fetch and cache video metadata from database (PERMANENT STORAGE)
   useEffect(() => {
     if (!userId || !currentVideoId) {
       setVideoPublishedYear('');
@@ -1739,21 +1747,51 @@ export default function YouTubePlaylistPlayer() {
       return;
     }
 
-    // Check in-memory cache (loaded from localStorage)
-    const cachedMeta = metadataCacheInMemory.current.get(currentVideoId);
-    if (cachedMeta) {
-      setVideoPublishedYear(cachedMeta.publishedYear || '');
-      setVideoAuthorName(cachedMeta.author || '');
-      setVideoViewCount(cachedMeta.viewCount || '');
-      setVideoChannelId(cachedMeta.channelId || '');
-    } else {
-      // No metadata in cache - set empty values
-      setVideoPublishedYear('');
-      setVideoAuthorName('');
-      setVideoViewCount('');
-      setVideoChannelId('');
-    }
-  }, [currentVideoId, userId]);
+    const loadMetadataFromDatabase = async () => {
+      if (isTauri) {
+        try {
+          const invoke = await getInvoke();
+          if (invoke) {
+            const dbMetadata = await invoke('get_video_metadata_batch', { videoIds: [currentVideoId] });
+            if (dbMetadata && dbMetadata[currentVideoId]) {
+              const meta = dbMetadata[currentVideoId];
+              setVideoPublishedYear(meta.publishedYear || '');
+              setVideoAuthorName(meta.author || '');
+              setVideoViewCount(meta.viewCount || '');
+              setVideoChannelId(meta.channelId || '');
+              // Also update in-memory cache
+              metadataCacheInMemory.current.set(currentVideoId, {
+                publishedYear: meta.publishedYear || '',
+                author: meta.author || '',
+                viewCount: meta.viewCount || '0',
+                channelId: meta.channelId || ''
+              });
+              return;
+            }
+          }
+        } catch (error) {
+          console.error('Error loading metadata from database:', error);
+        }
+      }
+
+      // Fallback: Check in-memory cache (loaded from localStorage)
+      const cachedMeta = metadataCacheInMemory.current.get(currentVideoId);
+      if (cachedMeta) {
+        setVideoPublishedYear(cachedMeta.publishedYear || '');
+        setVideoAuthorName(cachedMeta.author || '');
+        setVideoViewCount(cachedMeta.viewCount || '');
+        setVideoChannelId(cachedMeta.channelId || '');
+      } else {
+        // No metadata in cache - set empty values
+        setVideoPublishedYear('');
+        setVideoAuthorName('');
+        setVideoViewCount('');
+        setVideoChannelId('');
+      }
+    };
+
+    loadMetadataFromDatabase();
+  }, [currentVideoId, userId, isTauri]);
 
   // Reset visibleCount when videoFilter or playlist changes, but restore from scroll memory
   useEffect(() => {
@@ -2653,89 +2691,155 @@ export default function YouTubePlaylistPlayer() {
         });
       }
 
-      // 2. Check the cache for existing video details
-      console.log(`🔍 Checking cache for ${allVideoSnippets.length} videos...`);
+      // 2. Check database for existing video metadata (PERMANENT STORAGE - NEVER AUTO-REFETCHED)
+      console.log(`🔍 Checking database for metadata on ${allVideoSnippets.length} videos...`);
       const videoIds = allVideoSnippets.map(v => v.id);
-      const cachedVideos = {};
-      const idsToCheckInFirestore = [];
+      let cachedVideos = {};
       
-      // CRITICAL: Check in-memory cache FIRST to avoid Firestore reads
-      videoIds.forEach(id => {
-        const cached = metadataCacheInMemory.current.get(id);
-        if (cached) {
-          cachedVideos[id] = cached;
-        } else if (!metadataCacheCheckedThisSession.current.has(id)) {
-          // Only check Firestore if we haven't checked this ID in this session
-          idsToCheckInFirestore.push(id);
-        }
-      });
-      
-      // Only query Firestore for IDs we haven't checked yet this session
-      // TODO: Add metadata caching to local database if needed
-      if (false && idsToCheckInFirestore.length > 0) {
-        // const metadataCacheRef = collection(db, 'users', userId, 'videoMetadata');
-        
-        // Firestore 'in' queries are limited to 30 items, so we batch our checks
-        for (let i = 0; i < idsToCheckInFirestore.length; i += 30) {
-          const batchIds = idsToCheckInFirestore.slice(i, i + 30);
-          if (batchIds.length > 0) {
-            const q = query(metadataCacheRef, where('__name__', 'in', batchIds));
-            const querySnapshot = await getDocs(q);
-            querySnapshot.forEach(doc => {
-              const meta = doc.data();
-              // Store in in-memory cache for future use
-              metadataCacheInMemory.current.set(doc.id, meta);
-              metadataCacheCheckedThisSession.current.add(doc.id);
-              cachedVideos[doc.id] = meta;
-            });
-            // Mark all queried IDs as checked (even if not found)
-            batchIds.forEach(id => {
-              if (!metadataCacheCheckedThisSession.current.has(id)) {
-                metadataCacheCheckedThisSession.current.add(id);
-                // Store empty object if not found
-                if (!metadataCacheInMemory.current.has(id)) {
-                  metadataCacheInMemory.current.set(id, {});
-                }
-              }
-            });
-            // Persist to localStorage after batch
-            persistMetadataCache();
+      // CRITICAL: Check database FIRST (permanent storage, like thumbnails - fetch once, use forever)
+      if (isTauri) {
+        try {
+          const invoke = await getInvoke();
+          if (invoke) {
+            // Batch lookup from database (handles up to 999 IDs per query)
+            const dbMetadata = await invoke('get_video_metadata_batch', { videoIds });
+            if (dbMetadata) {
+              // Convert database format to our format
+              Object.keys(dbMetadata).forEach(videoId => {
+                const meta = dbMetadata[videoId];
+                cachedVideos[videoId] = {
+                  title: meta.title || '',
+                  author: meta.author || '',
+                  viewCount: meta.viewCount || '0',
+                  channelId: meta.channelId || '',
+                  publishedYear: meta.publishedYear || '',
+                  duration: meta.duration || 1
+                };
+              });
+              console.log(`✅ Found ${Object.keys(cachedVideos).length} videos with metadata in database`);
+            }
           }
-          if ((i + 30) % 300 === 0 || (i + 30) >= idsToCheckInFirestore.length) {
-            console.log(`🔍 Cache check progress: ${Math.min(i + 30, idsToCheckInFirestore.length)}/${idsToCheckInFirestore.length} videos checked in Firestore`);
-          }
+        } catch (error) {
+          console.error('Error checking database for metadata:', error);
         }
       }
       
+      // Identify videos missing metadata
       const idsToFetch = videoIds.filter(id => !cachedVideos[id]);
-      
       console.log(`💾 Found ${Object.keys(cachedVideos).length} cached videos, need to fetch ${idsToFetch.length} new ones`);
 
-      // 3. Fetch details ONLY for videos not in the cache
-      if (idsToFetch.length > 0) {
-        // CRITICAL: NO API CALLS FOR METADATA (duration, author, views, etc.)
-        // Only use cached metadata - thumbnails and playback are sufficient
-        // Titles from playlistItems API response are already in allVideoSnippets
-        console.log(`⏭️ Skipping metadata fetch for ${idsToFetch.length} uncached videos - NO API CALLS. Using cached data and titles from playlistItems only. Thumbnails are sufficient.`);
-        // Use titles from playlistItems (already in allVideoSnippets) and default values for other metadata
+      // 3. Fetch missing metadata from YouTube API (ONE-TIME FETCH PER VIDEO - STORED PERMANENTLY)
+      // CRITICAL: This is a ONE-TIME cost. After fetching, metadata is stored in database FOREVER.
+      // We NEVER auto-refetch. User is OK with outdated info - just want it there.
+      if (idsToFetch.length > 0 && currentApiKey) {
+        console.log(`📥 Fetching metadata for ${idsToFetch.length} videos (ONE-TIME FETCH - will be stored permanently in database)`);
+        
+        // Fetch in batches of 50 (YouTube API limit)
+        const metadataToSave = [];
+        
+        for (let i = 0; i < idsToFetch.length; i += 50) {
+          const batch = idsToFetch.slice(i, i + 50);
+          const batchIds = batch.join(',');
+          
+          try {
+            // Rate limiting
+            const timeSinceLastCall = Date.now() - lastApiCallTime.current;
+            if (timeSinceLastCall < 200) {
+              await new Promise(resolve => setTimeout(resolve, 200 - timeSinceLastCall));
+            }
+            lastApiCallTime.current = Date.now();
+            
+            const res = await fetch(
+              `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${batchIds}&key=${currentApiKey}`
+            );
+            const data = await res.json();
+            
+            if (data.items) {
+              data.items.forEach(item => {
+                const videoId = item.id;
+                const snippet = allVideoSnippets.find(s => s.id === videoId);
+                const title = item.snippet?.title || snippet?.title || '';
+                const author = item.snippet?.channelTitle || '';
+                const viewCount = item.statistics?.viewCount || '0';
+                const channelId = item.snippet?.channelId || '';
+                const publishedYear = item.snippet?.publishedAt 
+                  ? new Date(item.snippet.publishedAt).getFullYear().toString() 
+                  : '';
+                const duration = item.contentDetails?.duration 
+                  ? parseISO8601Duration(item.contentDetails.duration) 
+                  : 1;
+                
+                // Store in cache for immediate use
+                cachedVideos[videoId] = {
+                  title,
+                  author,
+                  viewCount,
+                  channelId,
+                  publishedYear,
+                  duration
+                };
+                
+                // Prepare for database save
+                metadataToSave.push({
+                  videoId,
+                  title,
+                  author,
+                  viewCount,
+                  channelId,
+                  publishedYear,
+                  duration
+                });
+              });
+              
+              console.log(`✅ Fetched metadata for batch ${Math.floor(i / 50) + 1} (${Math.min(i + 50, idsToFetch.length)}/${idsToFetch.length} videos)`);
+            }
+          } catch (error) {
+            console.error(`Error fetching metadata for batch starting at ${i}:`, error);
+            // Continue with next batch even if this one fails
+          }
+        }
+        
+        // Save all fetched metadata to database PERMANENTLY (ONE-TIME STORAGE - NEVER AUTO-REFETCHED)
+        if (metadataToSave.length > 0 && isTauri) {
+          try {
+            const invoke = await getInvoke();
+            if (invoke) {
+              await invoke('save_video_metadata_batch', { metadata: metadataToSave });
+              console.log(`💾 Saved ${metadataToSave.length} video metadata entries to database (PERMANENT STORAGE - will never be refetched)`);
+            }
+          } catch (error) {
+            console.error('Error saving metadata to database:', error);
+          }
+        }
+      } else if (idsToFetch.length > 0) {
+        // No API key or not in Tauri - use defaults
+        console.log(`⚠️ No API key or not in Tauri - using default metadata for ${idsToFetch.length} videos`);
         idsToFetch.forEach(id => {
           const snippet = allVideoSnippets.find(s => s.id === id);
           cachedVideos[id] = {
-            duration: 1, // Default duration
-            publishedYear: '',
+            title: snippet?.title || '',
             author: '',
             viewCount: '0',
             channelId: '',
-            title: snippet?.title || '' // Use title from playlistItems if available
+            publishedYear: '',
+            duration: 1
           };
         });
       }
 
       // 4. Combine titles with cached/fetched details
-      const allVideos = allVideoSnippets.map(snippet => ({
-        ...snippet,
-        duration: cachedVideos[snippet.id]?.duration || 1,
-      }));
+      const allVideos = allVideoSnippets.map(snippet => {
+        const meta = cachedVideos[snippet.id] || {};
+        return {
+          ...snippet,
+          title: meta.title || snippet.title || '', // Use database title if available, fallback to snippet
+          author: meta.author || '',
+          viewCount: meta.viewCount || '0',
+          channelId: meta.channelId || '',
+          publishedYear: meta.publishedYear || '',
+          duration: meta.duration || 1,
+        };
+      });
 
       console.log(`📦 Updating playlist ${playlistId} with ${allVideos.length} videos`);
       
@@ -2866,6 +2970,573 @@ export default function YouTubePlaylistPlayer() {
     });
     
     console.log(`✅ Created empty playlist: ${name.trim()} (${uniqueId})`);
+  };
+
+  // Fetch metadata for all videos in a playlist (ONE-TIME FETCH - STORED PERMANENTLY)
+  const handleFetchPlaylistMetadata = async (playlistId) => {
+    if (!isTauri) {
+      alert('Metadata fetching is only available in the desktop app.');
+      return;
+    }
+
+    if (!currentApiKey) {
+      console.error('❌ Please configure your YouTube API key in settings first.');
+      return;
+    }
+
+    const playlist = playlists.find(p => p.id === playlistId);
+    if (!playlist || !playlist.videos || playlist.videos.length === 0) {
+      console.error('❌ This playlist has no videos to fetch metadata for.');
+      return;
+    }
+
+    const videoIds = playlist.videos.map(v => typeof v === 'string' ? v : v.id);
+    if (videoIds.length === 0) {
+      console.error('❌ No video IDs found in this playlist.');
+      return;
+    }
+
+    // Check database first to see what's already stored
+    try {
+      const invoke = await getInvoke();
+      if (!invoke) {
+        throw new Error('Tauri invoke not available');
+      }
+
+      const cachedMetadata = await invoke('get_video_metadata_batch', { videoIds });
+      const cachedCount = Object.keys(cachedMetadata || {}).length;
+      const missingCount = videoIds.length - cachedCount;
+
+      if (missingCount === 0) {
+        console.log(`✅ All ${videoIds.length} videos in this playlist already have metadata stored in the database.`);
+        // Still refresh metadata display
+        const playlist = playlists.find(p => p.id === playlistId);
+        if (playlist && playlist.videos.length > 0) {
+          try {
+            const invoke = await getInvoke();
+            if (invoke) {
+              const playlistVideoIds = playlist.videos.map(v => typeof v === 'string' ? v : v.id);
+              const dbMetadata = await invoke('get_video_metadata_batch', { videoIds: playlistVideoIds });
+              
+              // Update playlist videos with metadata
+              setPlaylists(prev => prev.map(p => {
+                if (p.id !== playlistId) return p;
+                return {
+                  ...p,
+                  videos: p.videos.map(v => {
+                    const videoId = typeof v === 'string' ? v : v.id;
+                    const meta = dbMetadata[videoId];
+                    if (meta) {
+                      return {
+                        ...v,
+                        title: meta.title || (typeof v === 'string' ? '' : v.title) || '',
+                        author: meta.author || '',
+                        viewCount: meta.viewCount || '0',
+                        publishedYear: meta.publishedYear || ''
+                      };
+                    }
+                    return v;
+                  })
+                };
+              }));
+            }
+          } catch (error) {
+            console.error('Error refreshing metadata display:', error);
+          }
+        }
+        return;
+      }
+
+      // Use console.log instead of alert/confirm in Tauri to avoid ACL issues
+      console.log(`📊 Ready to fetch metadata for ${missingCount} videos (${Math.ceil(missingCount / 50)} API calls)`);
+      console.log(`💡 This is a ONE-TIME fetch - metadata will be stored permanently in the database (like thumbnails)`);
+      
+      // For now, auto-proceed (user can cancel by closing the app if needed)
+      // TODO: Add a proper modal dialog for confirmation
+
+      // Fetch missing metadata in batches of 50
+      const missingIds = videoIds.filter(id => !cachedMetadata[id]);
+      const metadataToSave = [];
+      let fetchedCount = 0;
+      let errorCount = 0;
+
+      console.log(`📥 Fetching metadata for ${missingIds.length} videos in playlist "${playlist.name}"...`);
+
+      for (let i = 0; i < missingIds.length; i += 50) {
+        const batch = missingIds.slice(i, i + 50);
+        const batchIds = batch.join(',');
+
+        try {
+          // Rate limiting
+          const timeSinceLastCall = Date.now() - lastApiCallTime.current;
+          if (timeSinceLastCall < 200) {
+            await new Promise(resolve => setTimeout(resolve, 200 - timeSinceLastCall));
+          }
+          lastApiCallTime.current = Date.now();
+
+          const res = await fetch(
+            `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${batchIds}&key=${currentApiKey}`
+          );
+          const data = await res.json();
+
+          if (data.error) {
+            console.error(`API Error for batch starting at ${i}:`, data.error);
+            errorCount += batch.length;
+            continue;
+          }
+
+          if (data.items) {
+            data.items.forEach(item => {
+              const videoId = item.id;
+              const title = item.snippet?.title || '';
+              const author = item.snippet?.channelTitle || '';
+              const viewCount = item.statistics?.viewCount || '0';
+              const channelId = item.snippet?.channelId || '';
+              const publishedYear = item.snippet?.publishedAt 
+                ? new Date(item.snippet.publishedAt).getFullYear().toString() 
+                : '';
+              const duration = item.contentDetails?.duration 
+                ? parseISO8601Duration(item.contentDetails.duration) 
+                : 1;
+
+              metadataToSave.push({
+                videoId,
+                title,
+                author,
+                viewCount,
+                channelId,
+                publishedYear,
+                duration
+              });
+              fetchedCount++;
+            });
+
+            console.log(`✅ Fetched batch ${Math.floor(i / 50) + 1} (${Math.min(i + 50, missingIds.length)}/${missingIds.length} videos)`);
+          }
+        } catch (error) {
+          console.error(`Error fetching batch starting at ${i}:`, error);
+          errorCount += batch.length;
+        }
+      }
+
+      // Save all fetched metadata to database PERMANENTLY
+      if (metadataToSave.length > 0) {
+        await invoke('save_video_metadata_batch', { metadata: metadataToSave });
+        console.log(`💾 Saved ${metadataToSave.length} video metadata entries to database (PERMANENT STORAGE)`);
+      }
+
+      // Show completion message
+      if (errorCount === 0) {
+        console.log(`✅ Successfully fetched and stored metadata for ${fetchedCount} videos!`);
+        console.log(`💾 This metadata is now stored permanently in the database and will never need to be refetched.`);
+      } else {
+        console.log(`⚠️ Fetched metadata for ${fetchedCount} videos, but ${errorCount} failed.`);
+        console.log(`💾 The successful fetches are now stored permanently in the database.`);
+      }
+
+      // Refresh metadata display immediately by reloading from database
+      // Update current video metadata if it's in this playlist
+      if (currentVideoId && videoIds.includes(currentVideoId)) {
+        try {
+          const invoke = await getInvoke();
+          if (invoke) {
+            const dbMetadata = await invoke('get_video_metadata_batch', { videoIds: [currentVideoId] });
+            if (dbMetadata && dbMetadata[currentVideoId]) {
+              const meta = dbMetadata[currentVideoId];
+              setVideoPublishedYear(meta.publishedYear || '');
+              setVideoAuthorName(meta.author || '');
+              setVideoViewCount(meta.viewCount || '');
+              setVideoChannelId(meta.channelId || '');
+            }
+          }
+        } catch (error) {
+          console.error('Error refreshing metadata display:', error);
+        }
+      }
+
+      // Also update playlist videos with metadata from database
+      const playlist = playlists.find(p => p.id === playlistId);
+      if (playlist && playlist.videos.length > 0) {
+        try {
+          const invoke = await getInvoke();
+          if (invoke) {
+            const playlistVideoIds = playlist.videos.map(v => typeof v === 'string' ? v : v.id);
+            const dbMetadata = await invoke('get_video_metadata_batch', { videoIds: playlistVideoIds });
+            
+            // Update playlist videos with metadata
+            setPlaylists(prev => prev.map(p => {
+              if (p.id !== playlistId) return p;
+              return {
+                ...p,
+                videos: p.videos.map(v => {
+                  const videoId = typeof v === 'string' ? v : v.id;
+                  const meta = dbMetadata[videoId];
+                  if (meta) {
+                    return {
+                      ...v,
+                      title: meta.title || (typeof v === 'string' ? '' : v.title) || '',
+                      author: meta.author || '',
+                      viewCount: meta.viewCount || '0',
+                      publishedYear: meta.publishedYear || ''
+                    };
+                  }
+                  return v;
+                })
+              };
+            }));
+          }
+        } catch (error) {
+          console.error('Error updating playlist with metadata:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching playlist metadata:', error);
+      alert(`Error fetching metadata: ${error.message || error}`);
+    }
+  };
+
+  // Overwrite playlist from file (replaces existing playlist)
+  const handleOverwritePlaylist = async (playlistId) => {
+    if (!isTauri) {
+      alert('Overwrite is only available in the desktop app.');
+      return;
+    }
+
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const selected = await open({
+        multiple: false,
+        filters: [{
+          name: 'Playlist Files',
+          extensions: ['json']
+        }]
+      });
+
+      if (!selected || typeof selected !== 'string') {
+        return; // User cancelled
+      }
+
+      const invoke = await getInvoke();
+      if (!invoke) {
+        throw new Error('Tauri invoke not available');
+      }
+
+      const result = await invoke('overwrite_playlist_file', {
+        userId: userId || 'default',
+        playlistId: playlistId,
+        filePath: selected
+      });
+
+      alert(result);
+      
+      // Reload user data and update state properly
+      const newData = await fetchUserData(userId || 'default');
+      if (newData) {
+        // Process playlists (expand video IDs if needed)
+        let processedPlaylists = newData.playlists || [];
+        processedPlaylists = processedPlaylists.map(playlist => {
+          if (!playlist.videos || playlist.videos.length === 0) return playlist;
+          const firstVideo = playlist.videos[0];
+          const videosAreIds = typeof firstVideo === 'string';
+          if (!videosAreIds) return playlist;
+          return {
+            ...playlist,
+            videos: playlist.videos.map(v => ({
+              id: typeof v === 'string' ? v : (v?.id || v),
+              title: '',
+              duration: 1
+            }))
+          };
+        });
+        
+        setPlaylists(processedPlaylists);
+        setPlaylistTabs(newData.playlistTabs || [{ name: 'All', playlistIds: [] }]);
+        if (newData.customColors) setCustomColors(newData.customColors);
+        if (newData.colorOrder) setColorOrder(newData.colorOrder);
+        if (newData.videoProgress) setVideoProgress(newData.videoProgress);
+        console.log(`✅ Import complete: ${processedPlaylists.length} playlists, ${newData.playlistTabs?.length || 0} tabs`);
+      }
+    } catch (error) {
+      console.error('❌ Overwrite failed:', error);
+      alert(`Overwrite failed: ${error.message || error}`);
+    }
+  };
+
+  // Export tab with all playlists
+  const handleExportTab = async (tabIndex) => {
+    if (!isTauri) {
+      alert('Export is only available in the desktop app.');
+      return;
+    }
+
+    try {
+      const invoke = await getInvoke();
+      if (!invoke) {
+        throw new Error('Tauri invoke not available');
+      }
+
+      const tabJson = await invoke('export_tab', {
+        userId: userId || 'default',
+        tabIndex: tabIndex
+      });
+
+      if (!tabJson) {
+        throw new Error('No tab data returned from backend');
+      }
+
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const tabName = playlistTabs[tabIndex]?.name || `tab-${tabIndex}`;
+      const filePath = await save({
+        filters: [{
+          name: 'Tab Files',
+          extensions: ['json']
+        }],
+        defaultPath: `${tabName.replace(/[^a-z0-9]/gi, '_')} - tab.json`
+      });
+
+      if (!filePath || typeof filePath !== 'string') {
+        return; // User cancelled
+      }
+
+      const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+      await writeTextFile(filePath, tabJson);
+
+      alert(`✅ Tab "${tabName}" exported successfully!\n\nSaved to: ${filePath}`);
+    } catch (error) {
+      console.error('❌ Export tab failed:', error);
+      alert(`Export failed: ${error.message || error}`);
+    }
+  };
+
+  // Smart import - detects if file is a tab or playlist and imports accordingly
+  const handleSmartImport = async () => {
+    if (!isTauri) {
+      alert('Import is only available in the desktop app.');
+      return;
+    }
+
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const selected = await open({
+        multiple: false,
+        filters: [{
+          name: 'Playlist/Tab Files',
+          extensions: ['json']
+        }]
+      });
+
+      if (!selected || typeof selected !== 'string') {
+        return; // User cancelled
+      }
+
+      const invoke = await getInvoke();
+      if (!invoke) {
+        throw new Error('Tauri invoke not available');
+      }
+
+      // Read file to detect type
+      const { readTextFile } = await import('@tauri-apps/plugin-fs');
+      const fileContent = await readTextFile(selected);
+      const jsonData = JSON.parse(fileContent);
+
+      // Detect if it's a tab file (has "tab" key) or playlist file
+      if (jsonData.tab && jsonData.playlists) {
+        // It's a tab file
+        const result = await invoke('import_tab_file', {
+          userId: userId || 'default',
+          filePath: selected
+        });
+        alert(result);
+      } else if (jsonData.playlists && Array.isArray(jsonData.playlists)) {
+        // It's a playlist file (array of playlists)
+        const result = await invoke('import_playlist_file', {
+          userId: userId || 'default',
+          filePath: selected
+        });
+        alert(result);
+      } else if (jsonData.id || (Array.isArray(jsonData) && jsonData.length > 0 && jsonData[0].id)) {
+        // Single playlist or array of playlists
+        const result = await invoke('import_playlist_file', {
+          userId: userId || 'default',
+          filePath: selected
+        });
+        alert(result);
+      } else {
+        throw new Error('Unknown file format. File must contain a playlist or tab structure.');
+      }
+      
+      // Reload user data and update state properly
+      const newData = await fetchUserData(userId || 'default');
+      if (newData) {
+        // Process playlists (expand video IDs if needed, same as initial load)
+        let processedPlaylists = newData.playlists || [];
+        
+        // Expand video IDs to full video objects if needed
+        processedPlaylists = processedPlaylists.map(playlist => {
+          if (!playlist.videos || playlist.videos.length === 0) return playlist;
+          const firstVideo = playlist.videos[0];
+          const videosAreIds = typeof firstVideo === 'string';
+          
+          if (!videosAreIds) {
+            return playlist; // Already full objects
+          }
+          
+          // Expand IDs to minimal objects
+          return {
+            ...playlist,
+            videos: playlist.videos.map(v => ({
+              id: typeof v === 'string' ? v : (v?.id || v),
+              title: '',
+              duration: 1
+            }))
+          };
+        });
+        
+        // Update state
+        setPlaylists(processedPlaylists);
+        setPlaylistTabs(newData.playlistTabs || [{ name: 'All', playlistIds: [] }]);
+        if (newData.customColors) setCustomColors(newData.customColors);
+        if (newData.colorOrder) setColorOrder(newData.colorOrder);
+        if (newData.videoProgress) setVideoProgress(newData.videoProgress);
+        
+        console.log(`✅ Import complete: ${processedPlaylists.length} playlists, ${newData.playlistTabs?.length || 0} tabs`);
+      }
+    } catch (error) {
+      console.error('❌ Import failed:', error);
+      alert(`Import failed: ${error.message || error}`);
+    }
+  };
+
+  // Import tab from file (kept for backward compatibility, but use handleSmartImport)
+  const handleImportTab = async () => {
+    return handleSmartImport();
+  };
+
+  // Import playlist from file
+  const handleImportPlaylist = async () => {
+    if (!isTauri) {
+      alert('Import is only available in the desktop app.');
+      return;
+    }
+
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const selected = await open({
+        multiple: false,
+        filters: [{
+          name: 'Playlist Files',
+          extensions: ['json']
+        }]
+      });
+
+      if (!selected || typeof selected !== 'string') {
+        return; // User cancelled
+      }
+
+      const invoke = await getInvoke();
+      if (!invoke) {
+        throw new Error('Tauri invoke not available');
+      }
+
+      const result = await invoke('import_playlist_file', {
+        userId: userId || 'default',
+        filePath: selected
+      });
+
+      alert(result);
+      
+      // Reload user data and update state properly
+      const newData = await fetchUserData(userId || 'default');
+      if (newData) {
+        // Process playlists (expand video IDs if needed)
+        let processedPlaylists = newData.playlists || [];
+        processedPlaylists = processedPlaylists.map(playlist => {
+          if (!playlist.videos || playlist.videos.length === 0) return playlist;
+          const firstVideo = playlist.videos[0];
+          const videosAreIds = typeof firstVideo === 'string';
+          if (!videosAreIds) return playlist;
+          return {
+            ...playlist,
+            videos: playlist.videos.map(v => ({
+              id: typeof v === 'string' ? v : (v?.id || v),
+              title: '',
+              duration: 1
+            }))
+          };
+        });
+        
+        setPlaylists(processedPlaylists);
+        setPlaylistTabs(newData.playlistTabs || [{ name: 'All', playlistIds: [] }]);
+        if (newData.customColors) setCustomColors(newData.customColors);
+        if (newData.colorOrder) setColorOrder(newData.colorOrder);
+        if (newData.videoProgress) setVideoProgress(newData.videoProgress);
+        console.log(`✅ Import complete: ${processedPlaylists.length} playlists, ${newData.playlistTabs?.length || 0} tabs`);
+      }
+    } catch (error) {
+      console.error('❌ Import failed:', error);
+      alert(`Import failed: ${error.message || error}`);
+    }
+  };
+
+  // Export playlist to file
+  const handleExportPlaylist = async (playlistId, playlistName) => {
+    if (!isTauri) {
+      alert('Export is only available in the desktop app.');
+      return;
+    }
+
+    try {
+      console.log('📤 Starting export for playlist:', playlistId, playlistName);
+      
+      const invoke = await getInvoke();
+      if (!invoke) {
+        throw new Error('Tauri invoke not available');
+      }
+
+      // Get playlist JSON from backend
+      console.log('📥 Fetching playlist data from backend...');
+      const playlistJson = await invoke('export_playlist', {
+        userId: userId || 'default',
+        playlistId: playlistId
+      });
+      
+      if (!playlistJson) {
+        throw new Error('No playlist data returned from backend');
+      }
+      
+      console.log('✅ Got playlist data, length:', playlistJson.length);
+
+      // Use Tauri dialog to save file
+      console.log('💾 Opening save dialog...');
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const filePath = await save({
+        filters: [{
+          name: 'Playlist Files',
+          extensions: ['json']
+        }],
+        defaultPath: `${playlistName.replace(/[^a-z0-9]/gi, '_')} - playlist.json`
+      });
+
+      console.log('📁 Save dialog result:', filePath);
+
+      if (!filePath || typeof filePath !== 'string') {
+        console.log('❌ User cancelled or no path returned');
+        return; // User cancelled
+      }
+
+      // Write file using Tauri fs API
+      console.log('✍️ Writing file to:', filePath);
+      const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+      
+      // Write file - filePath from save dialog is already absolute
+      await writeTextFile(filePath, playlistJson);
+      console.log('✅ File written successfully');
+      alert(`✅ Playlist "${playlistName}" exported successfully!\n\nSaved to: ${filePath}`);
+    } catch (error) {
+      console.error('❌ Export failed:', error);
+      console.error('Error stack:', error.stack);
+      alert(`Export failed: ${error.message || error}\n\nCheck console for details.`);
+    }
   };
 
   const handleAddPlaylist = async () => {
@@ -3161,6 +3832,185 @@ export default function YouTubePlaylistPlayer() {
       setIsBulkAdding(false);
       setBulkAddProgress({ loaded: 0, inProgress: 0, total: 0, playlists: [] });
       setBulkPlaylistIds(Array(10).fill(''));
+    }
+  };
+
+  // Handle configure playlist mode - creates one playlist with colored folders
+  const handleConfigurePlaylist = async () => {
+    if (!configurePlaylistName.trim() || !userId) {
+      alert('Please enter a playlist name.');
+      return;
+    }
+    if (!configurePlaylistEntries.some(e => e.id.trim())) {
+      alert('Please enter at least one playlist ID/URL.');
+      return;
+    }
+    if (!isFirebaseInitialized) {
+      alert('⚠️ App not ready yet. Please wait a moment and try again.');
+      return;
+    }
+
+    try {
+      // Extract and validate playlist IDs
+      const validEntries = [];
+      for (const entry of configurePlaylistEntries) {
+        const trimmed = entry.id.trim();
+        if (!trimmed) continue;
+        
+        const id = extractPlaylistId(trimmed);
+        if (id) {
+          validEntries.push({ id, color: entry.color });
+        } else {
+          console.warn(`Could not extract playlist ID from: ${trimmed}`);
+        }
+      }
+
+      if (validEntries.length === 0) {
+        alert('No valid playlist IDs found. Please check your input.');
+        return;
+      }
+
+      // Group by color and track folder names
+      const groupsByColor = {};
+      const folderNamesByColor = {}; // Store folder names for each color
+      
+      validEntries.forEach((entry) => {
+        if (!groupsByColor[entry.color]) {
+          groupsByColor[entry.color] = [];
+        }
+        groupsByColor[entry.color].push(entry.id);
+        
+        // Store folder name for this color (use custom name if provided, otherwise keep existing or use default)
+        if (!folderNamesByColor[entry.color]) {
+          if (entry.folderName && entry.folderName.trim()) {
+            // User provided custom folder name - use it
+            folderNamesByColor[entry.color] = entry.folderName.trim();
+          } else if (configurePlaylistMode === 'existing' && targetPlaylist.groups[entry.color]) {
+            // Use existing folder name from selected playlist
+            folderNamesByColor[entry.color] = targetPlaylist.groups[entry.color].name || '';
+          } else {
+            // Default to capitalized color name
+            folderNamesByColor[entry.color] = '';
+          }
+        }
+      });
+
+      // Update or create groups structure
+      const groups = configurePlaylistMode === 'existing' 
+        ? { ...targetPlaylist.groups } // Start with existing groups
+        : createDefaultGroups(); // Start with default groups
+      
+      Object.keys(groupsByColor).forEach(color => {
+        const folderName = folderNamesByColor[color] || (groups[color]?.name || color.charAt(0).toUpperCase() + color.slice(1));
+        groups[color] = {
+          name: folderName,
+          videos: groups[color]?.videos || [] // Preserve existing videos if updating
+        };
+      });
+
+      // Generate a unique ID for the new playlist
+      const newPlaylistId = `configured_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Create the new playlist
+      const newPlaylist = {
+        name: configurePlaylistName.trim(),
+        id: newPlaylistId,
+        videos: [],
+        groups: groups,
+        starred: []
+      };
+
+      // Add to playlists
+      setPlaylists(prev => {
+        const newPlaylists = [...prev];
+        const unsortedIndex = newPlaylists.findIndex(p => p.id === '_unsorted_');
+        if (unsortedIndex > -1) newPlaylists.splice(unsortedIndex, 0, newPlaylist);
+        else newPlaylists.push(newPlaylist);
+        return newPlaylists;
+      });
+
+      // Fetch videos for each source playlist and add to corresponding colored folder
+      for (const entry of validEntries) {
+        try {
+          // Fetch playlist info
+          const res = await fetch(`https://www.googleapis.com/youtube/v3/playlists?part=snippet&id=${entry.id}&key=${currentApiKey}`);
+          const data = await res.json();
+          
+          if (data.error || !data.items || !data.items[0]) {
+            console.error(`Error fetching playlist ${entry.id}:`, data.error);
+            continue;
+          }
+
+          // Fetch videos from this playlist
+          let allVideos = [];
+          let nextPageToken = null;
+          
+          do {
+            const videosRes = await fetch(
+              `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${entry.id}&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${currentApiKey}`
+            );
+            const videosData = await videosRes.json();
+            
+            if (videosData.items) {
+              const videos = videosData.items.map(item => ({
+                id: item.contentDetails.videoId,
+                title: item.snippet.title,
+                duration: 1 // Will be fetched later if needed
+              }));
+              allVideos.push(...videos);
+            }
+            
+            nextPageToken = videosData.nextPageToken;
+          } while (nextPageToken);
+
+          // Add videos to the target playlist and to the corresponding colored folder
+          setPlaylists(prev => prev.map(p => {
+            if (p.id !== targetPlaylistId) return p;
+            
+            // Add videos to main playlist
+            const existingVideoIds = new Set(p.videos.map(v => typeof v === 'string' ? v : v.id));
+            const newVideos = allVideos.filter(v => !existingVideoIds.has(v.id));
+            const updatedVideos = [...p.videos, ...newVideos];
+            
+            // Add video IDs to the colored folder group
+            const updatedGroups = { ...p.groups };
+            if (updatedGroups[entry.color]) {
+              const existingGroupVideoIds = new Set(updatedGroups[entry.color].videos || []);
+              const newGroupVideoIds = allVideos
+                .map(v => v.id)
+                .filter(id => !existingGroupVideoIds.has(id));
+              updatedGroups[entry.color] = {
+                ...updatedGroups[entry.color],
+                videos: [...(updatedGroups[entry.color].videos || []), ...newGroupVideoIds]
+              };
+            }
+            
+            return {
+              ...p,
+              videos: updatedVideos,
+              groups: updatedGroups
+            };
+          }));
+        } catch (error) {
+          console.error(`Error processing playlist ${entry.id}:`, error);
+        }
+      }
+
+      // Reset form and close modal
+      setConfigurePlaylistName('');
+      setConfigurePlaylistEntries([{ id: '', color: 'red', folderName: '' }]);
+      setConfigurePlaylistMode('new');
+      setConfigureSelectedPlaylistId('');
+      setShowBulkAddModal(false);
+      setBulkAddMode('bulk');
+      
+      const playlistName = configurePlaylistMode === 'existing' 
+        ? targetPlaylist.name 
+        : configurePlaylistName.trim();
+      console.log(`✅ Playlist "${playlistName}" ${configurePlaylistMode === 'existing' ? 'updated' : 'created'} successfully! Videos are being fetched...`);
+    } catch (error) {
+      console.error('Error in configure playlist:', error);
+      alert(`An error occurred: ${error.message || error}`);
     }
   };
 
@@ -3993,6 +4843,15 @@ export default function YouTubePlaylistPlayer() {
                         >
                           {tab.name}
                         </button>
+                        {isTauri && index !== 0 && (
+                          <button
+                            onClick={() => handleExportTab(index)}
+                            className="p-1.5 text-white/70 hover:text-white hover:bg-blue-500/50 rounded-full transition-colors"
+                            title={`Export tab "${tab.name}" with all playlists`}
+                          >
+                            <Download size={16} />
+                          </button>
+                        )}
                             {index !== 0 && (
                               <button 
                             onClick={() => {
@@ -4043,6 +4902,15 @@ export default function YouTubePlaylistPlayer() {
                 <div className="flex gap-2 mb-4">
                   <input className="flex-grow bg-white/10 text-white p-2 rounded" type="text" placeholder="Paste YouTube Playlist ID" value={newPlaylistId} onChange={e => setNewPlaylistId(e.target.value)} />
                   <div className="flex items-center gap-2">
+                    {isTauri && (
+                      <button 
+                        onClick={handleSmartImport}
+                        className="bg-green-500/80 hover:bg-green-500 text-white p-2 rounded flex items-center gap-1"
+                        title="Import playlist or tab from file (auto-detects file type)"
+                      >
+                        <Upload size={18} />
+                      </button>
+                    )}
                     <button className="bg-blue-500 text-white p-2 rounded" onClick={handleAddPlaylist} disabled={!userId}>Add Playlist</button>
                     <button className="bg-gray-600 text-white p-2 rounded hover:bg-gray-700" onClick={handleCreateEmptyPlaylist} disabled={!userId} title="Create an empty placeholder playlist">
                       Create Empty
@@ -4384,6 +5252,13 @@ export default function YouTubePlaylistPlayer() {
                                   >
                                     <GitMerge size={20}/>
                                   </button>
+                                  <button 
+                                    onClick={() => handleExportPlaylist(playlist.id, playlist.name)}
+                                    title="Export Playlist" 
+                                    className="bg-green-500/80 p-3 rounded-full hover:bg-green-500"
+                                  >
+                                    <Download size={20}/>
+                                  </button>
                                 <button 
                                   onClick={() => {
                                     console.log('Delete playlist button clicked for:', playlist);
@@ -4462,6 +5337,17 @@ export default function YouTubePlaylistPlayer() {
                         <span className="text-xs mt-1">Add</span>
                      </button>
                   )}
+                  {/* Import Playlist button */}
+                  {isTauri && (
+                    <button 
+                      onClick={handleImportPlaylist}
+                      className="aspect-video bg-white/5 rounded-lg flex flex-col items-center justify-center text-white/30 hover:bg-white/10 hover:text-white transition-colors border-2 border-dashed border-white/20"
+                      title="Import playlist from JSON file"
+                    >
+                      <Upload size={32} />
+                      <span className="text-xs mt-2">Import</span>
+                    </button>
+                  )}
                   {/* Create Empty Playlist button in grid */}
                   <button 
                     onClick={handleCreateEmptyPlaylist} 
@@ -4513,9 +5399,31 @@ export default function YouTubePlaylistPlayer() {
               return (
                 <>
                   <div className="sticky top-0 z-20 bg-black/80 backdrop-blur-sm pt-4 -mx-4 px-4 pb-4">
-                    <div className="flex justify-end gap-2 mb-4">
-                      <button onClick={() => setShowSideMenu('playlists')} className="text-white bg-white/10 hover:bg-white/20 p-2 rounded-full"><ChevronLeft size={24} /></button>
-                      <button onClick={() => setShowSideMenu(null)} className="text-white bg-white/10 hover:bg-white/20 p-2 rounded-full"><X size={24} /></button>
+                    <div className="flex justify-between items-center mb-4">
+                      <div className="flex gap-2">
+                        {isTauri && !displayedPlaylist.isColoredFolder && (
+                          <>
+                            <button 
+                              onClick={() => handleFetchPlaylistMetadata(displayedPlaylist.id)}
+                              className="text-white bg-blue-500/80 hover:bg-blue-500 p-2 rounded-full"
+                              title="Fetch metadata for all videos (ONE-TIME - stored permanently in database)"
+                            >
+                              <Database size={20} />
+                            </button>
+                            <button 
+                              onClick={() => handleOverwritePlaylist(displayedPlaylist.id)}
+                              className="text-white bg-orange-500/80 hover:bg-orange-500 p-2 rounded-full"
+                              title="Overwrite playlist from file"
+                            >
+                              <Upload size={20} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => setShowSideMenu('playlists')} className="text-white bg-white/10 hover:bg-white/20 p-2 rounded-full"><ChevronLeft size={24} /></button>
+                        <button onClick={() => setShowSideMenu(null)} className="text-white bg-white/10 hover:bg-white/20 p-2 rounded-full"><X size={24} /></button>
+                      </div>
                     </div>
                     <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-3 pt-0">
                       {renamingGroup === videoFilter ? (
@@ -4811,7 +5719,30 @@ export default function YouTubePlaylistPlayer() {
                                 )}
                               </div>
                             </div>
-                            <h3 className="text-white font-semibold mt-2 text-sm truncate">{video.title}</h3>
+                            <h3 
+                              className="text-white font-semibold mt-2 text-sm truncate hover:text-blue-400 cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const url = `https://www.youtube.com/watch?v=${video.id}`;
+                                if (isTauri) {
+                                  // Use Tauri shell to open in default browser
+                                  import('@tauri-apps/plugin-shell').then(({ open }) => {
+                                    open(url).catch(err => console.error('Failed to open URL:', err));
+                                  });
+                                } else {
+                                  window.open(url, '_blank');
+                                }
+                              }}
+                              title="Click to open on YouTube"
+                            >
+                              {video.title}
+                            </h3>
+                            {(video.author || video.viewCount) && (
+                              <div className="text-white/60 text-xs mt-1 flex items-center gap-2">
+                                {video.author && <span>{video.author}</span>}
+                                {video.viewCount && video.viewCount !== '0' && <span>• {formatViews(video.viewCount)} views</span>}
+                              </div>
+                            )}
                           </button>
                             );
                           })()}
@@ -4855,7 +5786,23 @@ export default function YouTubePlaylistPlayer() {
                           <img src={entry.videoId ? `https://img.youtube.com/vi/${entry.videoId}/mqdefault.jpg` : '/no-thumb.jpg'} alt={entry.title} className="w-full h-full object-cover" loading="lazy"/>
                         </div>
                         <div>
-                          <h3 className="text-white font-semibold text-sm truncate">{entry.title}</h3>
+                          <h3 
+                            className="text-white font-semibold text-sm truncate hover:text-blue-400 cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const url = `https://www.youtube.com/watch?v=${entry.videoId}`;
+                              if (isTauri) {
+                                import('@tauri-apps/plugin-shell').then(({ open }) => {
+                                  open(url).catch(err => console.error('Failed to open URL:', err));
+                                });
+                              } else {
+                                window.open(url, '_blank');
+                              }
+                            }}
+                            title="Click to open on YouTube"
+                          >
+                            {entry.title}
+                          </h3>
                           <p className="text-white/60 text-xs">{entry.playlistName} • {formatTimestamp(entry.timestamp)}</p>
                         </div>
                       </button>
@@ -4922,7 +5869,23 @@ export default function YouTubePlaylistPlayer() {
                           <div className="aspect-video bg-gray-800 rounded-lg overflow-hidden relative">
                             <img src={`https://img.youtube.com/vi/${video.id}/mqdefault.jpg`} alt={video.title} className="w-full h-full object-cover" loading="lazy" />
                           </div>
-                          <h3 className="text-white font-semibold mt-2 text-sm truncate">{video.title}</h3>
+                          <h3 
+                            className="text-white font-semibold mt-2 text-sm truncate hover:text-blue-400 cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const url = `https://www.youtube.com/watch?v=${video.id}`;
+                              if (isTauri) {
+                                import('@tauri-apps/plugin-shell').then(({ open }) => {
+                                  open(url).catch(err => console.error('Failed to open URL:', err));
+                                });
+                              } else {
+                                window.open(url, '_blank');
+                              }
+                            }}
+                            title="Click to open on YouTube"
+                          >
+                            {video.title}
+                          </h3>
                         </button>
                          <div className="absolute top-2 left-2 px-2 py-1 rounded-full bg-black/50 text-white text-xs font-bold">{formatMinutes(video.duration)}</div>
                       </div>
@@ -5092,8 +6055,8 @@ export default function YouTubePlaylistPlayer() {
           {playlistTabs.length > 1 && (
             <div className="flex items-center gap-1 mt-2">
               {playlistTabs.map((tab, index) => (
-            <button 
-                  key={index}
+                <div key={index} className="flex items-center gap-1">
+            <button
                   onClick={() => {
                     // Update tab memory and switch tabs
                     setTabLastPlaylists(prev => {
@@ -5143,6 +6106,16 @@ export default function YouTubePlaylistPlayer() {
                 >
                   {tab.name}
             </button>
+                  {isTauri && index !== 0 && (
+                    <button
+                      onClick={() => handleExportTab(index)}
+                      className="p-1.5 text-white/70 hover:text-white hover:bg-blue-500/50 rounded-full transition-colors"
+                      title={`Export tab "${tab.name}" with all playlists`}
+                    >
+                      <Download size={16} />
+                    </button>
+                  )}
+                </div>
               ))}
           </div>
           )}
@@ -5167,7 +6140,24 @@ export default function YouTubePlaylistPlayer() {
               onMouseEnter={() => { if (titleHoverTimerRef.current) clearTimeout(titleHoverTimerRef.current); titleHoverTimerRef.current = setTimeout(() => setIsTitleExpanded(true), 2000); }}
               onMouseLeave={() => { if (titleHoverTimerRef.current) { clearTimeout(titleHoverTimerRef.current); titleHoverTimerRef.current = null; } setIsTitleExpanded(false); }}
             >
-              {currentVideoTitle}
+              <span
+                className="hover:text-blue-400 cursor-pointer"
+                onClick={() => {
+                  if (currentVideoId) {
+                    const url = `https://www.youtube.com/watch?v=${currentVideoId}`;
+                    if (isTauri) {
+                      import('@tauri-apps/plugin-shell').then(({ open }) => {
+                        open(url).catch(err => console.error('Failed to open URL:', err));
+                      });
+                    } else {
+                      window.open(url, '_blank');
+                    }
+                  }
+                }}
+                title="Click to open on YouTube"
+              >
+                {currentVideoTitle}
+              </span>
             </span>
             <button onClick={goToNextVideo} className={`p-1 hover:bg-white/20 rounded-md ${isTitleExpanded ? 'ml-auto' : ''}`}><ChevronRight size={20} /></button>
             <div className={`${isTitleExpanded ? 'absolute -top-6 right-0 opacity-0 pointer-events-none' : 'relative translate-y-0 opacity-100'} transition-all duration-300 flex items-center gap-2`}>
@@ -5401,61 +6391,297 @@ export default function YouTubePlaylistPlayer() {
       {/* Bulk Add Playlists Modal */}
       {showBulkAddModal && (
         <div className="fixed inset-0 bg-black/80 z-40 flex items-center justify-center p-4">
-          <div className="bg-gray-900 rounded-lg p-6 max-w-2xl w-full">
+          <div className="bg-gray-900 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-white">Bulk Add Playlists</h2>
+              <h2 className="text-xl font-bold text-white">Add Playlists</h2>
               <button 
                 onClick={() => { 
                   setShowBulkAddModal(false); 
-                  setBulkPlaylistIds(Array(10).fill('')); 
+                  setBulkPlaylistIds(Array(10).fill(''));
+                  setBulkAddMode('bulk');
+                  setConfigurePlaylistName('');
+                  setConfigurePlaylistEntries([{ id: '', color: 'red', folderName: '' }]);
+                  setConfigurePlaylistMode('new');
+                  setConfigureSelectedPlaylistId('');
                 }} 
                 className="p-2 rounded-full hover:bg-white/10"
               >
                 <X size={20} />
               </button>
             </div>
-            <p className="text-white/70 mb-4">
-              Enter playlist IDs or URLs (one per box). Each playlist will be added separately.
-            </p>
 
-            <div className="mb-4">
-              <label className="block text-white mb-2">Playlist IDs or URLs (one per box):</label>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {bulkPlaylistIds.map((id, index) => (
-                  <input
-                    key={index}
-                    type="text"
-                    value={id}
-                    onChange={(e) => {
-                      const newIds = [...bulkPlaylistIds];
-                      newIds[index] = e.target.value;
-                      setBulkPlaylistIds(newIds);
+            {/* Tab Switcher */}
+            <div className="flex gap-2 mb-4 border-b border-white/10">
+              <button
+                onClick={() => setBulkAddMode('bulk')}
+                className={`px-4 py-2 font-medium transition-colors ${
+                  bulkAddMode === 'bulk'
+                    ? 'text-white border-b-2 border-purple-500'
+                    : 'text-white/60 hover:text-white/80'
+                }`}
+              >
+                Bulk Add
+              </button>
+              <button
+                onClick={() => setBulkAddMode('configure')}
+                className={`px-4 py-2 font-medium transition-colors ${
+                  bulkAddMode === 'configure'
+                    ? 'text-white border-b-2 border-purple-500'
+                    : 'text-white/60 hover:text-white/80'
+                }`}
+              >
+                Configure Playlist
+              </button>
+            </div>
+
+            {/* Bulk Add Mode */}
+            {bulkAddMode === 'bulk' && (
+              <>
+                <p className="text-white/70 mb-4">
+                  Enter playlist IDs or URLs (one per box). Each playlist will be added separately.
+                </p>
+
+                <div className="mb-4">
+                  <label className="block text-white mb-2">Playlist IDs or URLs (one per box):</label>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {bulkPlaylistIds.map((id, index) => (
+                      <input
+                        key={index}
+                        type="text"
+                        value={id}
+                        onChange={(e) => {
+                          const newIds = [...bulkPlaylistIds];
+                          newIds[index] = e.target.value;
+                          setBulkPlaylistIds(newIds);
+                        }}
+                        placeholder={`Playlist ${index + 1} ID or URL`}
+                        className="w-full bg-white/10 text-white p-2 rounded font-mono text-sm"
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => {
+                      setShowBulkAddModal(false);
+                      setBulkPlaylistIds(Array(10).fill(''));
                     }}
-                    placeholder={`Playlist ${index + 1} ID or URL`}
-                    className="w-full bg-white/10 text-white p-2 rounded font-mono text-sm"
-                  />
-                ))}
-              </div>
-            </div>
+                    className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleBulkAddPlaylists}
+                    className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 disabled:bg-gray-700 disabled:cursor-not-allowed"
+                    disabled={!bulkPlaylistIds.some(id => id.trim())}
+                  >
+                    Add Playlists
+                  </button>
+                </div>
+              </>
+            )}
 
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => {
-                  setShowBulkAddModal(false);
-                  setBulkPlaylistIds(Array(10).fill(''));
-                }}
-                className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleBulkAddPlaylists}
-                className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 disabled:bg-gray-700 disabled:cursor-not-allowed"
-                disabled={!bulkPlaylistIds.some(id => id.trim())}
-              >
-                Add Playlists
-              </button>
-            </div>
+            {/* Configure Playlist Mode */}
+            {bulkAddMode === 'configure' && (
+              <>
+                <p className="text-white/70 mb-4">
+                  Create one playlist with colored folders, or add to an existing playlist. Each source playlist will populate a colored folder.
+                </p>
+
+                <div className="mb-4">
+                  <label className="block text-white mb-2">Mode:</label>
+                  <div className="flex gap-4 mb-3">
+                    <label className="flex items-center gap-2 text-white cursor-pointer">
+                      <input
+                        type="radio"
+                        name="configureMode"
+                        value="new"
+                        checked={configurePlaylistMode === 'new'}
+                        onChange={() => {
+                          setConfigurePlaylistMode('new');
+                          setConfigureSelectedPlaylistId('');
+                        }}
+                        className="w-4 h-4"
+                      />
+                      <span>Create New Playlist</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-white cursor-pointer">
+                      <input
+                        type="radio"
+                        name="configureMode"
+                        value="existing"
+                        checked={configurePlaylistMode === 'existing'}
+                        onChange={() => {
+                          setConfigurePlaylistMode('existing');
+                          setConfigurePlaylistName('');
+                        }}
+                        className="w-4 h-4"
+                      />
+                      <span>Add to Existing Playlist</span>
+                    </label>
+                  </div>
+
+                  {configurePlaylistMode === 'new' ? (
+                    <input
+                      type="text"
+                      value={configurePlaylistName}
+                      onChange={(e) => setConfigurePlaylistName(e.target.value)}
+                      placeholder="Enter playlist name"
+                      className="w-full bg-white/10 text-white p-2 rounded"
+                    />
+                  ) : (
+                    <select
+                      value={configureSelectedPlaylistId}
+                      onChange={(e) => {
+                        setConfigureSelectedPlaylistId(e.target.value);
+                        // Reset entries when playlist changes
+                        setConfigurePlaylistEntries([{ id: '', color: 'red', folderName: '' }]);
+                      }}
+                      className="w-full bg-white/10 text-white p-2 rounded border border-white/20"
+                      style={{ color: 'white', backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
+                    >
+                      <option value="" style={{ backgroundColor: '#1f2937', color: 'white' }}>Select a playlist...</option>
+                      {playlists.filter(p => p.id !== '_unsorted_' && !p.isColoredFolder).map(playlist => (
+                        <option key={playlist.id} value={playlist.id} style={{ backgroundColor: '#1f2937', color: 'white' }}>
+                          {playlist.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-white mb-2">Playlist IDs with Colors:</label>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {configurePlaylistEntries.map((entry, index) => (
+                      <div key={index} className="flex gap-2 items-center">
+                        <input
+                          type="text"
+                          value={entry.id}
+                          onChange={(e) => {
+                            const newEntries = [...configurePlaylistEntries];
+                            newEntries[index].id = e.target.value;
+                            setConfigurePlaylistEntries(newEntries);
+                          }}
+                          placeholder={`Playlist ${index + 1} ID or URL`}
+                          className="flex-1 bg-white/10 text-white p-2 rounded font-mono text-sm"
+                        />
+                        <input
+                          type="text"
+                          value={entry.folderName}
+                          onChange={(e) => {
+                            const newEntries = [...configurePlaylistEntries];
+                            newEntries[index].folderName = e.target.value;
+                            setConfigurePlaylistEntries(newEntries);
+                          }}
+                          placeholder="Folder name (optional)"
+                          className="flex-1 bg-white/10 text-white p-2 rounded text-sm"
+                        />
+                        <select
+                          value={entry.color}
+                          onChange={(e) => {
+                            const newEntries = [...configurePlaylistEntries];
+                            newEntries[index].color = e.target.value;
+                            // If existing playlist is selected, use its folder name for this color
+                            if (configurePlaylistMode === 'existing' && configureSelectedPlaylistId) {
+                              const selectedPlaylist = playlists.find(p => p.id === configureSelectedPlaylistId);
+                              if (selectedPlaylist && selectedPlaylist.groups[e.target.value]) {
+                                newEntries[index].folderName = selectedPlaylist.groups[e.target.value].name || '';
+                              }
+                            }
+                            setConfigurePlaylistEntries(newEntries);
+                          }}
+                          className="bg-white/10 text-white p-2 rounded text-sm appearance-none cursor-pointer border border-white/20"
+                          style={{ color: 'white', backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
+                        >
+                          {(() => {
+                            const colorOrder = ['red', 'green', 'blue', 'yellow', 'orange', 'purple', 'pink', 'cyan', 'indigo', 'teal', 'lime', 'amber', 'emerald', 'violet', 'rose', 'sky'];
+                            const selectedPlaylist = configurePlaylistMode === 'existing' && configureSelectedPlaylistId 
+                              ? playlists.find(p => p.id === configureSelectedPlaylistId)
+                              : null;
+                            
+                            return colorOrder.map(color => {
+                              // Get folder name: custom name if existing playlist selected, otherwise default
+                              const folderName = selectedPlaylist && selectedPlaylist.groups[color]
+                                ? selectedPlaylist.groups[color].name
+                                : color.charAt(0).toUpperCase() + color.slice(1);
+                              
+                              return (
+                                <option key={color} value={color} style={{ backgroundColor: '#1f2937', color: 'white' }}>
+                                  {folderName}
+                                </option>
+                              );
+                            });
+                          })()}
+                        </select>
+                        {configurePlaylistEntries.length > 1 && (
+                          <button
+                            onClick={() => {
+                              const newEntries = configurePlaylistEntries.filter((_, i) => i !== index);
+                              setConfigurePlaylistEntries(newEntries);
+                            }}
+                            className="p-2 text-red-400 hover:bg-red-500/20 rounded"
+                          >
+                            <X size={16} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => {
+                      // Cycle through colors: red, green, blue, yellow, orange, purple, pink, cyan, indigo, teal, lime, amber, emerald, violet, rose, sky
+                      const colorOrder = ['red', 'green', 'blue', 'yellow', 'orange', 'purple', 'pink', 'cyan', 'indigo', 'teal', 'lime', 'amber', 'emerald', 'violet', 'rose', 'sky'];
+                      const lastColor = configurePlaylistEntries[configurePlaylistEntries.length - 1]?.color || 'red';
+                      const lastColorIndex = colorOrder.indexOf(lastColor);
+                      const nextColorIndex = (lastColorIndex + 1) % colorOrder.length;
+                      const nextColor = colorOrder[nextColorIndex];
+                      
+                      // If existing playlist is selected, use its folder name for this color
+                      let folderName = '';
+                      if (configurePlaylistMode === 'existing' && configureSelectedPlaylistId) {
+                        const selectedPlaylist = playlists.find(p => p.id === configureSelectedPlaylistId);
+                        if (selectedPlaylist && selectedPlaylist.groups[nextColor]) {
+                          folderName = selectedPlaylist.groups[nextColor].name || '';
+                        }
+                      }
+                      
+                      setConfigurePlaylistEntries([...configurePlaylistEntries, { id: '', color: nextColor, folderName }]);
+                    }}
+                    className="mt-2 px-3 py-1 bg-white/10 text-white rounded hover:bg-white/20 text-sm"
+                  >
+                    + Add Another
+                  </button>
+                </div>
+
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => {
+                      setShowBulkAddModal(false);
+                      setConfigurePlaylistName('');
+                      setConfigurePlaylistEntries([{ id: '', color: 'red', folderName: '' }]);
+                      setConfigurePlaylistMode('new');
+                      setConfigureSelectedPlaylistId('');
+                    }}
+                    className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfigurePlaylist}
+                    className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 disabled:bg-gray-700 disabled:cursor-not-allowed"
+                    disabled={
+                      (configurePlaylistMode === 'new' && !configurePlaylistName.trim()) ||
+                      (configurePlaylistMode === 'existing' && !configureSelectedPlaylistId) ||
+                      !configurePlaylistEntries.some(e => e.id.trim())
+                    }
+                  >
+                    {configurePlaylistMode === 'existing' ? 'Update Playlist' : 'Create Playlist'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

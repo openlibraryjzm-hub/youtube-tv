@@ -10,31 +10,51 @@ git add .
 # Create commit message in temp file
 $tempFile = "commit-msg-temp.txt"
 $commitMessage = @"
-[AI] User Request: "push the git now"
+[AI] Major Feature Updates: Configure Playlist Modal & Video Metadata System
 
 Changes:
-- Created MASTER-PROMPT.txt - Concise pasteable prompt for AI agents
-- Updated AI-ONBOARDING-PROMPT.md - Added documentation maintenance protocol
-- Updated GIT-COMMIT-PROTOCOL.md - Clarified only upon user request
-- Updated DOCUMENTATION-MAINTENANCE.md - Removed mandatory/automatic language
-- Deleted 11 outdated documentation files (Electron/Firestore era)
-- Consolidated Tauri docs into core documentation
-- Added GitHub repository info to MASTER-PROMPT.txt
+- Enhanced "Configure Playlist" mode with existing playlist support
+  - Option to create new playlist OR add to existing playlist
+  - When existing playlist selected, color dropdown shows custom folder names
+  - Preserves existing videos and groups when updating
+  - Custom folder name input for each colored folder
+  - Color cycling for "Add Another" button (cycles through all 16 colors)
+- Video Metadata System (PERMANENT STORAGE - like thumbnails)
+  - Database table: video_metadata stores title, author, views, channelId, publishedYear, duration
+  - Automatic metadata fetching when adding playlists (single or bulk)
+  - Manual "Fetch Metadata" button per playlist (Database icon)
+  - ONE-TIME FETCH per video - stored permanently, never auto-refetched
+  - Metadata displayed in video grid (author, views below titles)
+  - Metadata displayed in current video info card (top right)
+- Fixed "Show Colored Folders" toggle default to OFF
+- Enhanced playlist import/export features
+  - Smart import auto-detects playlist vs tab files from single button
+  - Export filenames include type suffix (- playlist.json, - tab.json)
+  - Immediate UI refresh after import (no app restart needed)
+  - Export individual playlists and full tab structures
+  - Overwrite playlist option for replacing existing playlists
+- UI Improvements
+  - Fixed dropdown text color visibility (white on white issue)
+  - Split playlist ID field into two: ID input and folder name input (horizontally aligned)
+  - Improved modal layouts and user experience
 
 Files Modified:
-- MASTER-PROMPT.txt (new file)
-- AI-ONBOARDING-PROMPT.md
-- GIT-COMMIT-PROTOCOL.md
-- DOCUMENTATION-MAINTENANCE.md
-- README-DOCUMENTATION.md
+- app/page.jsx (configure playlist enhancements, metadata system, UI improvements)
+- src-tauri/src/db.rs (video_metadata table, batch save/get commands)
+- src-tauri/src/main.rs (registered new metadata commands)
+- AI-ONBOARDING-PROMPT.md (updated with new features)
+- METADATA-FETCHING-SOLUTION.md (new documentation file)
+- push-documentation-updates.ps1 (this file)
 
-Files Deleted:
-- FINAL-FIX.md, FIRESTORE-READS.md, FIX-NODE-MODULES-ISSUE.md
-- DOCUMENTATION-GAPS.md, DOCUMENTATION-GUIDE.md, Grok-Context.md
-- SIZE-OPTIMIZATION-PLAN.md, SIZE-ANALYSIS.md, QUICK-REBUILD.md
-- MANUAL-REBUILD-INSTRUCTIONS.md, MIGRATION-PLAN.md
-- REBUILD-INSTRUCTIONS.md, INSTALLED-APP-CONTEXT.md
-- TAURI-QUICK-REFERENCE.md, TAURI-DEVELOPMENT-GUIDE.md, TEST-FRESH-ENVIRONMENT.md
+Technical Details:
+- Configure playlist: Creates/updates playlists with colored folders pre-configured
+- Each source playlist populates its assigned colored folder
+- Videos are fetched and organized automatically
+- Metadata: Fetched once per video, stored in SQLite forever (like thumbnails)
+- Metadata cost: ~400 API calls for 20,000 videos (one-time, free tier covers it)
+- Import/export supports both individual playlists and full tab structures
+- All changes persist immediately without requiring app restart
+- User preference: OK with outdated metadata - just want it stored permanently
 "@
 
 # Write to temp file

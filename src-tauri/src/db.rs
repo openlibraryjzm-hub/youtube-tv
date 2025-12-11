@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::OnceLock;
 use std::fs;
+use std::collections::HashSet;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UserData {
@@ -168,6 +169,27 @@ fn initialize_schema(conn: &Connection) -> Result<()> {
 
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_playlists_playlist_id ON playlists(playlist_id)",
+        [],
+    )?;
+
+    // Video metadata table - stores title, author, views, etc. (one-time fetch, use forever)
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS video_metadata (
+            video_id TEXT PRIMARY KEY,
+            title TEXT,
+            author TEXT,
+            view_count TEXT,
+            channel_id TEXT,
+            published_year TEXT,
+            duration INTEGER DEFAULT 1,
+            fetched_at INTEGER DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_video_metadata_video_id ON video_metadata(video_id)",
         [],
     )?;
 
@@ -697,6 +719,295 @@ pub fn save_user_data(user_id: String, data: UserData) -> Result<(), String> {
     Ok(())
 }
 
+/// Import a playlist from a JSON file (safe - only adds, never deletes or modifies existing)
+/// File should contain a single playlist object or an array with one playlist
+#[tauri::command]
+pub fn import_playlist_file(user_id: String, file_path: String) -> Result<String, String> {
+    eprintln!("📥 import_playlist_file called for user_id: {}, file: {}", user_id, file_path);
+    
+    // Read and parse the file
+    let file_content = fs::read_to_string(&file_path)
+        .map_err(|e| format!("Failed to read file: {}", e))?;
+    
+    let json_data: serde_json::Value = serde_json::from_str(&file_content)
+        .map_err(|e| format!("Invalid JSON: {}", e))?;
+    
+    // Extract playlist(s) from the JSON
+    // Support both single playlist object and array of playlists
+    let playlists_to_import: Vec<Playlist> = if let Some(playlists_array) = json_data.get("playlists").and_then(|v| v.as_array()) {
+        // File has "playlists" array
+        playlists_array.iter()
+            .filter_map(|p| serde_json::from_value(p.clone()).ok())
+            .collect()
+    } else if json_data.is_object() && json_data.get("id").is_some() {
+        // Single playlist object
+        vec![serde_json::from_value(json_data)
+            .map_err(|e| format!("Invalid playlist format: {}", e))?]
+    } else if let Some(playlists_array) = json_data.as_array() {
+        // Array of playlists at root
+        playlists_array.iter()
+            .filter_map(|p| serde_json::from_value(p.clone()).ok())
+            .collect()
+    } else {
+        return Err("File must contain a playlist object or array of playlists".to_string());
+    };
+    
+    if playlists_to_import.is_empty() {
+        return Err("No valid playlists found in file".to_string());
+    }
+    
+    eprintln!("   Found {} playlist(s) to import", playlists_to_import.len());
+    
+    // Get current user data (preserves all existing playlists, tabs, colors, etc.)
+    let mut current_data = get_user_data(user_id.clone())
+        .map_err(|e| format!("Failed to get current user data: {}", e))?;
+    
+    // Get existing playlist IDs to avoid duplicates
+    let existing_ids: HashSet<String> = current_data.playlists.iter()
+        .map(|p| p.id.clone())
+        .collect();
+    
+    // Add new playlists (skip duplicates by ID)
+    let mut added_count = 0;
+    let mut skipped_count = 0;
+    
+    for playlist in playlists_to_import {
+        if existing_ids.contains(&playlist.id) {
+            eprintln!("   ⚠️ Skipping playlist '{}' (ID: {}) - already exists", playlist.name, playlist.id);
+            skipped_count += 1;
+        } else {
+            eprintln!("   ✅ Adding playlist '{}' (ID: {})", playlist.name, playlist.id);
+            current_data.playlists.push(playlist);
+            added_count += 1;
+        }
+    }
+    
+    // Save the updated data (this will preserve tabs, colors, progress - only playlists change)
+    save_user_data(user_id.clone(), current_data)
+        .map_err(|e| format!("Failed to save imported playlists: {}", e))?;
+    
+    if added_count == 0 {
+        Ok(format!("No new playlists imported. {} playlist(s) skipped (already exist).", skipped_count))
+    } else {
+        Ok(format!("Successfully imported {} playlist(s). {} skipped (already exist).", added_count, skipped_count))
+    }
+}
+
+/// Overwrite an existing playlist with imported data (replaces playlist by ID)
+#[tauri::command]
+pub fn overwrite_playlist_file(user_id: String, playlist_id: String, file_path: String) -> Result<String, String> {
+    eprintln!("🔄 overwrite_playlist_file called for user_id: {}, playlist_id: {}, file: {}", user_id, playlist_id, file_path);
+    
+    // Read and parse the file
+    let file_content = fs::read_to_string(&file_path)
+        .map_err(|e| format!("Failed to read file: {}", e))?;
+    
+    let json_data: serde_json::Value = serde_json::from_str(&file_content)
+        .map_err(|e| format!("Invalid JSON: {}", e))?;
+    
+    // Extract playlist from the JSON
+    let playlist_to_import: Playlist = if let Some(playlists_array) = json_data.get("playlists").and_then(|v| v.as_array()) {
+        // File has "playlists" array - take first one
+        if playlists_array.is_empty() {
+            return Err("No playlists found in file".to_string());
+        }
+        serde_json::from_value(playlists_array[0].clone())
+            .map_err(|e| format!("Invalid playlist format: {}", e))?
+    } else if json_data.is_object() && json_data.get("id").is_some() {
+        // Single playlist object
+        serde_json::from_value(json_data)
+            .map_err(|e| format!("Invalid playlist format: {}", e))?
+    } else {
+        return Err("File must contain a playlist object".to_string());
+    };
+    
+    // Get current user data
+    let mut current_data = get_user_data(user_id.clone())
+        .map_err(|e| format!("Failed to get current user data: {}", e))?;
+    
+    // Save playlist name before moving
+    let playlist_name = playlist_to_import.name.clone();
+    
+    // Find and replace the playlist
+    let playlist_index = current_data.playlists.iter()
+        .position(|p| p.id == playlist_id);
+    
+    match playlist_index {
+        Some(idx) => {
+            eprintln!("   ✅ Replacing playlist '{}' (ID: {})", current_data.playlists[idx].name, playlist_id);
+            // Replace with imported playlist (but keep the same ID to maintain tab references)
+            current_data.playlists[idx] = Playlist {
+                id: playlist_id.clone(), // Keep original ID
+                ..playlist_to_import
+            };
+        }
+        None => {
+            return Err(format!("Playlist with ID '{}' not found. Use regular import to add new playlists.", playlist_id));
+        }
+    }
+    
+    // Save the updated data
+    save_user_data(user_id.clone(), current_data)
+        .map_err(|e| format!("Failed to save overwritten playlist: {}", e))?;
+    
+    Ok(format!("Successfully overwrote playlist '{}'", playlist_name))
+}
+
+/// Export a tab with all its playlists as JSON
+#[tauri::command]
+pub fn export_tab(user_id: String, tab_index: usize) -> Result<String, String> {
+    eprintln!("📤 export_tab called for user_id: {}, tab_index: {}", user_id, tab_index);
+    
+    let current_data = get_user_data(user_id.clone())
+        .map_err(|e| format!("Failed to get current user data: {}", e))?;
+    
+    if tab_index >= current_data.playlist_tabs.len() {
+        return Err(format!("Tab index {} out of range ({} tabs available)", tab_index, current_data.playlist_tabs.len()));
+    }
+    
+    let tab = &current_data.playlist_tabs[tab_index];
+    
+    // Get all playlists in this tab
+    let tab_playlists: Vec<Playlist> = current_data.playlists.iter()
+        .filter(|p| tab.playlist_ids.contains(&p.id))
+        .cloned()
+        .collect();
+    
+    // Create export structure
+    let export_data = serde_json::json!({
+        "tab": {
+            "name": tab.name,
+            "playlistIds": tab.playlist_ids
+        },
+        "playlists": tab_playlists
+    });
+    
+    let json = serde_json::to_string_pretty(&export_data)
+        .map_err(|e| format!("Failed to serialize tab: {}", e))?;
+    
+    eprintln!("   ✅ Exported tab '{}' with {} playlists", tab.name, tab_playlists.len());
+    Ok(json)
+}
+
+/// Import a tab file (creates tab and imports playlists)
+#[tauri::command]
+pub fn import_tab_file(user_id: String, file_path: String) -> Result<String, String> {
+    eprintln!("📥 import_tab_file called for user_id: {}, file: {}", user_id, file_path);
+    
+    // Read and parse the file
+    let file_content = fs::read_to_string(&file_path)
+        .map_err(|e| format!("Failed to read file: {}", e))?;
+    
+    let json_data: serde_json::Value = serde_json::from_str(&file_content)
+        .map_err(|e| format!("Invalid JSON: {}", e))?;
+    
+    // Extract tab and playlists
+    let tab_data = json_data.get("tab")
+        .ok_or_else(|| "File must contain a 'tab' object".to_string())?;
+    
+    let tab_name = tab_data.get("name")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "Tab must have a 'name' field".to_string())?
+        .to_string();
+    
+    let tab_playlist_ids: Vec<String> = tab_data.get("playlistIds")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+    
+    let playlists_to_import: Vec<Playlist> = json_data.get("playlists")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|p| serde_json::from_value(p.clone()).ok())
+                .collect()
+        })
+        .unwrap_or_default();
+    
+    if playlists_to_import.is_empty() {
+        return Err("No playlists found in file".to_string());
+    }
+    
+    eprintln!("   Found tab '{}' with {} playlists", tab_name, playlists_to_import.len());
+    
+    // Get current user data
+    let mut current_data = get_user_data(user_id.clone())
+        .map_err(|e| format!("Failed to get current user data: {}", e))?;
+    
+    // Add new playlists (update if they exist, add if new)
+    let mut added_count = 0;
+    let mut updated_count = 0;
+    
+    for playlist in playlists_to_import {
+        if let Some(existing_idx) = current_data.playlists.iter().position(|p| p.id == playlist.id) {
+            // Update existing playlist
+            eprintln!("   🔄 Updating existing playlist '{}' (ID: {})", playlist.name, playlist.id);
+            current_data.playlists[existing_idx] = playlist;
+            updated_count += 1;
+        } else {
+            // Add new playlist
+            eprintln!("   ✅ Adding new playlist '{}' (ID: {})", playlist.name, playlist.id);
+            current_data.playlists.push(playlist);
+            added_count += 1;
+        }
+    }
+    
+    // Create new tab
+    let new_tab = PlaylistTab {
+        name: tab_name.clone(),
+        playlist_ids: tab_playlist_ids.clone(),
+    };
+    
+    current_data.playlist_tabs.push(new_tab);
+    
+    // Save the updated data
+    save_user_data(user_id.clone(), current_data)
+        .map_err(|e| format!("Failed to save imported tab: {}", e))?;
+    
+    Ok(format!("Successfully imported tab '{}': {} playlists added, {} updated", tab_name, added_count, updated_count))
+}
+
+/// Export a single playlist as JSON string (frontend will handle file save dialog)
+#[tauri::command]
+pub fn export_playlist(user_id: String, playlist_id: String) -> Result<String, String> {
+    eprintln!("📤 export_playlist called for user_id: {}, playlist_id: {}", user_id, playlist_id);
+    
+    let conn = get_connection().map_err(|e| e.to_string())?;
+    
+    // Get the playlist
+    let mut stmt = conn.prepare(
+        "SELECT playlist_id, name, videos, groups, starred, category, description, 
+                thumbnail, is_converted_from_colored_folder, representative_video_id
+         FROM playlists WHERE user_id = ? AND playlist_id = ?"
+    ).map_err(|e| e.to_string())?;
+    
+    let playlist: Playlist = stmt.query_row(params![user_id, playlist_id], |row| {
+        Ok(Playlist {
+            id: row.get(0)?,
+            name: row.get(1)?,
+            videos: serde_json::from_str(&row.get::<_, String>(2)?).unwrap_or_default(),
+            groups: serde_json::from_str(&row.get::<_, Option<String>>(3)?.unwrap_or_default()).unwrap_or(serde_json::json!({})),
+            starred: serde_json::from_str(&row.get::<_, Option<String>>(4)?.unwrap_or_default()).unwrap_or_default(),
+            category: row.get(5)?,
+            description: row.get(6)?,
+            thumbnail: row.get(7)?,
+            is_converted_from_colored_folder: row.get::<_, i32>(8)? != 0,
+            representative_video_id: row.get(9)?,
+        })
+    }).map_err(|e| format!("Playlist not found: {}", e))?;
+    
+    // Format as JSON (single playlist object)
+    let json = serde_json::to_string_pretty(&playlist)
+        .map_err(|e| format!("Failed to serialize playlist: {}", e))?;
+    
+    eprintln!("   ✅ Exported playlist '{}'", playlist.name);
+    Ok(json)
+}
+
 #[tauri::command]
 pub fn save_video_progress(user_id: String, video_progress: serde_json::Value) -> Result<(), String> {
     let conn = get_connection().map_err(|e| e.to_string())?;
@@ -727,6 +1038,124 @@ pub fn save_video_progress(user_id: String, video_progress: serde_json::Value) -
            updated_at = strftime('%s', 'now')",
         params![user_id, merged_json],
     ).map_err(|e| e.to_string())?;
+    
+    Ok(())
+}
+
+/// Save video metadata (title, author, views, etc.) - one-time fetch, use forever
+#[tauri::command]
+pub fn save_video_metadata(video_id: String, title: String, author: String, view_count: String, channel_id: String, published_year: String, duration: i32) -> Result<(), String> {
+    let conn = get_connection().map_err(|e| e.to_string())?;
+    
+    conn.execute(
+        "INSERT INTO video_metadata (video_id, title, author, view_count, channel_id, published_year, duration, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%s', 'now'))
+         ON CONFLICT(video_id) DO UPDATE SET
+           title = excluded.title,
+           author = excluded.author,
+           view_count = excluded.view_count,
+           channel_id = excluded.channel_id,
+           published_year = excluded.published_year,
+           duration = excluded.duration,
+           updated_at = strftime('%s', 'now')",
+        params![video_id, title, author, view_count, channel_id, published_year, duration],
+    ).map_err(|e| e.to_string())?;
+    
+    Ok(())
+}
+
+/// Get video metadata for multiple videos (batch lookup)
+#[tauri::command]
+pub fn get_video_metadata_batch(video_ids: Vec<String>) -> Result<serde_json::Value, String> {
+    let conn = get_connection().map_err(|e| e.to_string())?;
+    
+    if video_ids.is_empty() {
+        return Ok(serde_json::json!({}));
+    }
+    
+    // SQLite 'IN' clause limit is 999, so we batch if needed
+    let mut results = serde_json::Map::new();
+    
+    for chunk in video_ids.chunks(999) {
+        let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let query = format!(
+            "SELECT video_id, title, author, view_count, channel_id, published_year, duration
+             FROM video_metadata
+             WHERE video_id IN ({})",
+            placeholders
+        );
+        
+        let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
+        let rows = stmt.query_map(
+            rusqlite::params_from_iter(chunk.iter()),
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?, // video_id
+                    row.get::<_, Option<String>>(1)?, // title
+                    row.get::<_, Option<String>>(2)?, // author
+                    row.get::<_, Option<String>>(3)?, // view_count
+                    row.get::<_, Option<String>>(4)?, // channel_id
+                    row.get::<_, Option<String>>(5)?, // published_year
+                    row.get::<_, i32>(6)?, // duration
+                ))
+            },
+        ).map_err(|e| e.to_string())?;
+        
+        for row_result in rows {
+            let (video_id, title, author, view_count, channel_id, published_year, duration) = row_result.map_err(|e| e.to_string())?;
+            results.insert(
+                video_id.clone(),
+                serde_json::json!({
+                    "title": title.unwrap_or_default(),
+                    "author": author.unwrap_or_default(),
+                    "viewCount": view_count.unwrap_or_default(),
+                    "channelId": channel_id.unwrap_or_default(),
+                    "publishedYear": published_year.unwrap_or_default(),
+                    "duration": duration
+                })
+            );
+        }
+    }
+    
+    Ok(serde_json::Value::Object(results))
+}
+
+/// Save multiple video metadata entries at once (batch insert)
+#[tauri::command]
+pub fn save_video_metadata_batch(metadata: Vec<serde_json::Value>) -> Result<(), String> {
+    let mut conn = get_connection().map_err(|e| e.to_string())?;
+    
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    
+    {
+        let mut stmt = tx.prepare(
+            "INSERT INTO video_metadata (video_id, title, author, view_count, channel_id, published_year, duration, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%s', 'now'))
+             ON CONFLICT(video_id) DO UPDATE SET
+               title = excluded.title,
+               author = excluded.author,
+               view_count = excluded.view_count,
+               channel_id = excluded.channel_id,
+               published_year = excluded.published_year,
+               duration = excluded.duration,
+               updated_at = strftime('%s', 'now')"
+        ).map_err(|e| e.to_string())?;
+        
+        for item in metadata {
+            let video_id = item["videoId"].as_str().ok_or("Missing videoId")?;
+            let title = item["title"].as_str().unwrap_or("");
+            let author = item["author"].as_str().unwrap_or("");
+            let view_count = item["viewCount"].as_str().unwrap_or("0");
+            let channel_id = item["channelId"].as_str().unwrap_or("");
+            let published_year = item["publishedYear"].as_str().unwrap_or("");
+            let duration = item["duration"].as_i64().unwrap_or(1) as i32;
+            
+            stmt.execute(params![video_id, title, author, view_count, channel_id, published_year, duration])
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    
+    tx.commit().map_err(|e| e.to_string())?;
     
     Ok(())
 }
