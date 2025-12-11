@@ -2,7 +2,7 @@
 
 mod db;
 
-use db::{get_user_data, save_user_data, save_video_progress, test_db_connection, check_default_channels, force_initialize_default_channels, set_resource_dir, import_playlist_file, export_playlist, overwrite_playlist_file, export_tab, import_tab_file, save_video_metadata, get_video_metadata_batch, save_video_metadata_batch};
+use db::{get_user_data, save_user_data, save_video_progress, test_db_connection, check_default_channels, force_initialize_default_channels, set_resource_dir, import_playlist_file, export_playlist, overwrite_playlist_file, export_tab, import_tab_file, save_video_metadata, get_video_metadata_batch, save_video_metadata_batch, scan_local_folder};
 
 // Devtools will be handled via frontend JavaScript
 // No Rust command needed - the frontend can use Tauri API directly
@@ -23,7 +23,8 @@ fn main() {
       import_tab_file,
       save_video_metadata,
       get_video_metadata_batch,
-      save_video_metadata_batch
+      save_video_metadata_batch,
+      scan_local_folder
     ])
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_fs::init())

@@ -1,7 +1,7 @@
 # AI Agent Master Onboarding Prompt
 
 **🎯 ULTIMATE PROMPT FOR AI AGENTS**  
-**Last Updated:** 2025-01-12  
+**Last Updated:** 2025-01-13  
 **Status:** ✅ **PRODUCTION READY - FULLY FUNCTIONAL**
 
 > **📝 Documentation Preference:** When answering questions or providing information, prefer updating existing documentation files rather than creating new ones. Only create new documentation files when explicitly requested by the user.
@@ -51,7 +51,7 @@ A desktop application that transforms YouTube playlists into a Netflix-like, lea
 
 ### User Experience
 - **Main Interface:** Full-screen YouTube player (left) + Splitscreen menu (right)
-- **Core Features:** Watch videos, organize into colored folders, manage playlists, track progress, import/export playlists and tabs, configure playlists with colored folders
+- **Core Features:** Watch videos, organize into colored folders, manage playlists, track progress, import/export playlists and tabs, configure playlists with colored folders, play local video files (.mp4, .webm)
 - **First Launch:** 20+ default playlists with 20,000+ videos load automatically
 - **Data Persistence:** All data saved locally, no cloud account needed
 
@@ -422,7 +422,23 @@ pub fn get_user_data(user_id: String) -> Result<UserData, String> {
 
 ---
 
-## 🎨 Recent Features (2025-01-12)
+## 🎨 Recent Features (2025-01-13)
+
+### Local File Support (NEW)
+- **Add Local Videos:** Support for playing local video files (.mp4, .webm) alongside YouTube videos
+- **Two Ways to Add:**
+  - **Folder Selection:** Scan folder recursively for video files (creates new playlist)
+  - **Individual Files:** Select multiple video files to add to existing playlist or create new one
+- **Player:** HTML5 video player for local files, YouTube IFrame for YouTube videos (automatic detection)
+- **Storage:** File paths stored with `local:file://` prefix, absolute paths preserved
+- **UI:** Purple Folder icon button in playlist add bar and in playlist videos view
+- **Features:**
+  - Progress tracking for local videos (saved every 5 seconds)
+  - Resume playback from last position
+  - Thumbnail placeholders (can be enhanced to extract frames later)
+  - Works seamlessly with existing YouTube playlists
+
+### Configure Playlist Mode (Enhanced)
 
 ### Configure Playlist Mode (Enhanced)
 - **Location:** Bulk Add Modal → "Configure Playlist" tab

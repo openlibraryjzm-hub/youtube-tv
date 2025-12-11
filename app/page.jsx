@@ -69,6 +69,7 @@ import {
   Download,
   Upload,
   Database,
+  Folder,
 } from "lucide-react"
 // Firebase imports removed - using local database via API routes instead
 // import { collection, query, orderBy, limit, deleteDoc, setDoc, doc, onSnapshot, updateDoc, getDocs, writeBatch, where, deleteField } from "firebase/firestore";
@@ -616,6 +617,7 @@ export default function YouTubePlaylistPlayer() {
 
   const playerRef = useRef(null)
   const playerContainerRef = useRef(null);
+  const localVideoRef = useRef(null);
   const titleHoverTimerRef = useRef(null);
   const starHoverTimer = useRef(null);
   const starLeaveTimer = useRef(null);
@@ -2973,6 +2975,92 @@ export default function YouTubePlaylistPlayer() {
   };
 
   // Fetch metadata for all videos in a playlist (ONE-TIME FETCH - STORED PERMANENTLY)
+  // Add local video files to current playlist
+  const handleAddLocalVideosToPlaylist = async (playlistId) => {
+    if (!isTauri) {
+      console.log('Add local videos is only available in the desktop app.');
+      return;
+    }
+
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      const selected = await open({
+        multiple: true,
+        filters: [{
+          name: 'Video Files',
+          extensions: ['mp4', 'webm', 'MP4', 'WEBM']
+        }],
+        title: 'Select video files to add to playlist'
+      });
+
+      if (!selected || (Array.isArray(selected) && selected.length === 0)) {
+        return; // User cancelled
+      }
+
+      const files = Array.isArray(selected) ? selected : [selected];
+      console.log('📁 Selected video files:', files);
+
+      // Convert file paths to video objects
+      const videoFiles = files.map(filePath => {
+        const fileName = filePath.split(/[/\\]/).pop() || 'Unknown';
+        const videoId = `local:file://${filePath}`;
+        
+        return {
+          id: videoId,
+          title: fileName,
+          duration: 0,
+          filePath: filePath
+        };
+      });
+
+      if (videoFiles.length === 0) {
+        console.log('⚠️ No video files selected.');
+        return;
+      }
+
+      console.log(`✅ Adding ${videoFiles.length} video file(s) to playlist`);
+
+      // Find the playlist and add videos to it
+      const playlistIndex = playlists.findIndex(p => p.id === playlistId);
+      if (playlistIndex === -1) {
+        console.error('Playlist not found');
+        return;
+      }
+
+      const playlist = playlists[playlistIndex];
+      const updatedVideos = [...playlist.videos, ...videoFiles];
+
+      // Update playlist in state
+      setPlaylists(prev => prev.map((p, idx) => 
+        idx === playlistIndex 
+          ? { ...p, videos: updatedVideos }
+          : p
+      ));
+
+      // Save to database
+      const currentData = await fetchUserData(userId || 'default');
+      if (currentData) {
+        const updatedPlaylists = currentData.playlists.map((p, idx) => 
+          idx === playlistIndex 
+            ? { ...p, videos: updatedVideos }
+            : p
+        );
+
+        const updatedData = {
+          ...currentData,
+          playlists: updatedPlaylists
+        };
+
+        await saveUserData(userId || 'default', updatedData);
+      }
+
+      console.log(`✅ Added ${videoFiles.length} video(s) to playlist: "${playlist.name}"`);
+    } catch (error) {
+      console.error('❌ Add local videos to playlist failed:', error);
+      console.log(`Add local videos failed: ${error.message || error}`);
+    }
+  };
+
   const handleFetchPlaylistMetadata = async (playlistId) => {
     if (!isTauri) {
       alert('Metadata fetching is only available in the desktop app.');
@@ -3475,6 +3563,163 @@ export default function YouTubePlaylistPlayer() {
     } catch (error) {
       console.error('❌ Import failed:', error);
       alert(`Import failed: ${error.message || error}`);
+    }
+  };
+
+  // Add local files/folder as playlist
+  const handleAddLocalFolder = async () => {
+    if (!isTauri) {
+      console.log('Add local files is only available in the desktop app.');
+      return;
+    }
+
+    try {
+      // Show dialog to choose between folder or files
+      const choice = confirm('Select "OK" to choose a folder, or "Cancel" to select individual video files');
+      
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      let videoFiles = [];
+
+      if (choice) {
+        // User chose folder
+        const selected = await open({
+          multiple: false,
+          directory: true,
+          title: 'Select folder with video files'
+        });
+
+        if (!selected || typeof selected !== 'string') {
+          return; // User cancelled
+        }
+
+        const invoke = await getInvoke();
+        if (!invoke) {
+          throw new Error('Tauri invoke not available');
+        }
+
+        console.log('📁 Scanning folder for video files:', selected);
+        try {
+          videoFiles = await invoke('scan_local_folder', {
+            folderPath: selected
+          });
+          console.log('📥 Scan result:', videoFiles);
+        } catch (error) {
+          console.error('❌ Error scanning folder:', error);
+          console.log(`Error scanning folder: ${error.message || error}`);
+          return;
+        }
+
+        if (!videoFiles || videoFiles.length === 0) {
+          console.log('⚠️ No video files found in selected folder.');
+          return;
+        }
+      } else {
+        // User chose individual files
+        const selected = await open({
+          multiple: true,
+          filters: [{
+            name: 'Video Files',
+            extensions: ['mp4', 'webm', 'MP4', 'WEBM']
+          }],
+          title: 'Select video files'
+        });
+
+        if (!selected || (Array.isArray(selected) && selected.length === 0)) {
+          return; // User cancelled
+        }
+
+        const files = Array.isArray(selected) ? selected : [selected];
+        console.log('📁 Selected video files:', files);
+
+        // Convert file paths to video objects
+        videoFiles = files.map(filePath => {
+          const fileName = filePath.split(/[/\\]/).pop() || 'Unknown';
+          const videoId = `local:file://${filePath}`;
+          
+          return {
+            id: videoId,
+            title: fileName,
+            duration: 0,
+            filePath: filePath
+          };
+        });
+      }
+
+      if (videoFiles.length === 0) {
+        console.log('⚠️ No video files selected.');
+        return;
+      }
+
+      console.log(`✅ Found ${videoFiles.length} video file(s)`);
+
+      // Get name for playlist (folder name or "Local Videos")
+      let playlistName = 'Local Videos';
+      if (choice && videoFiles.length > 0) {
+        // Try to extract folder name from first file path
+        const firstPath = videoFiles[0].filePath || videoFiles[0].id.replace('local:file://', '');
+        const pathParts = firstPath.split(/[/\\]/);
+        if (pathParts.length > 1) {
+          playlistName = pathParts[pathParts.length - 2]; // Parent folder name
+        }
+      } else if (!choice && videoFiles.length === 1) {
+        // Single file - use filename without extension
+        const fileName = videoFiles[0].title || 'Local Video';
+        playlistName = fileName.replace(/\.[^/.]+$/, ''); // Remove extension
+      }
+      
+      // Create a new playlist with local videos
+      const newPlaylist = {
+        id: `local_${Date.now()}`,
+        name: playlistName,
+        videos: videoFiles,
+        groups: {
+          red: {name: 'Red', videos: []}, 
+          green: {name: 'Green', videos: []}, 
+          blue: {name: 'Blue', videos: []}, 
+          yellow: {name: 'Yellow', videos: []},
+          orange: {name: 'Orange', videos: []}, 
+          purple: {name: 'Purple', videos: []}, 
+          pink: {name: 'Pink', videos: []}, 
+          cyan: {name: 'Cyan', videos: []}, 
+          indigo: {name: 'Indigo', videos: []}
+        },
+        starred: []
+      };
+
+      // Add to playlists
+      setPlaylists(prev => [...prev, newPlaylist]);
+      
+      // Add to current tab
+      if (playlistTabs.length > 0 && activePlaylistTab < playlistTabs.length) {
+        setPlaylistTabs(prev => {
+          const updated = [...prev];
+          updated[activePlaylistTab].playlistIds.push(newPlaylist.id);
+          return updated;
+        });
+      }
+
+      // Save to database
+      const currentData = await fetchUserData(userId || 'default');
+      if (currentData) {
+        const updatedPlaylists = [...(currentData.playlists || []), newPlaylist];
+        const updatedTabs = [...(currentData.playlistTabs || [])];
+        if (updatedTabs.length > 0 && activePlaylistTab < updatedTabs.length) {
+          updatedTabs[activePlaylistTab].playlistIds.push(newPlaylist.id);
+        }
+
+        const updatedData = {
+          ...currentData,
+          playlists: updatedPlaylists,
+          playlistTabs: updatedTabs
+        };
+
+        await saveUserData(userId || 'default', updatedData);
+      }
+
+      console.log(`✅ Local files added as playlist: "${playlistName}" with ${videoFiles.length} video(s)`);
+    } catch (error) {
+      console.error('❌ Add local files failed:', error);
+      console.log(`Add local files failed: ${error.message || error}`);
     }
   };
 
@@ -4517,7 +4762,7 @@ export default function YouTubePlaylistPlayer() {
         name: coloredFolder.name, // Use the colored folder's custom name (e.g., "yellow", "My Custom Name")
         videos: [...coloredFolder.videos], // Copy the videos
         groups: {}, // Start with empty groups
-        thumbnail: coloredFolder.videos[0]?.id ? `https://img.youtube.com/vi/${coloredFolder.videos[0].id}/mqdefault.jpg` : '/no-thumb.jpg',
+        thumbnail: getVideoThumbnail(coloredFolder.videos[0]?.id),
         isConvertedFromColoredFolder: true // Mark as converted to distinguish from regular colored folders
       };
 
@@ -4546,6 +4791,27 @@ export default function YouTubePlaylistPlayer() {
     return `Videos in ${displayedPlaylist.name}`;
   };
 
+  // Helper functions for local file handling
+  const isLocalFile = (videoId) => {
+    return videoId && videoId.startsWith('local:file://');
+  };
+
+  const getLocalFilePath = (videoId) => {
+    if (!isLocalFile(videoId)) return null;
+    
+    // First, try to get filePath from the video object if available
+    const currentVideo = currentPlaylist.videos.find(v => v.id === videoId);
+    if (currentVideo && currentVideo.filePath) {
+      console.log("📁 Using filePath from video object:", currentVideo.filePath);
+      return currentVideo.filePath;
+    }
+    
+    // Otherwise, extract from videoId - keep original path format (don't convert slashes)
+    let path = videoId.replace('local:file://', '');
+    console.log("📁 Extracted path from videoId:", path);
+    return path;
+  };
+
   const destroyPlayer = () => {
     if (playerRef.current && typeof playerRef.current.destroy === 'function') {
       try { playerRef.current.destroy(); } catch (error) { console.error("Error destroying YouTube player:", error); }
@@ -4556,11 +4822,111 @@ export default function YouTubePlaylistPlayer() {
     setIsPlaying(false);
   };
 
-  const initializePlayer = () => {
-    if (!currentVideoId || !window.YT || !playerContainerRef.current) {
-      console.warn("Cannot initialize player: missing video ID, YouTube API, or player container");
+  const initializePlayer = async () => {
+    if (!currentVideoId || !playerContainerRef.current) {
+      console.warn("Cannot initialize player: missing video ID or player container");
       return;
     }
+
+    // Handle local files
+    if (isLocalFile(currentVideoId)) {
+      const filePath = getLocalFilePath(currentVideoId);
+      if (!filePath) {
+        console.error("❌ Invalid local file path:", currentVideoId);
+        return;
+      }
+
+      console.log("🎬 Initializing local video player for:", filePath);
+
+      playerContainerRef.current.innerHTML = '';
+      const video = document.createElement('video');
+      video.style.width = '100%';
+      video.style.height = '100%';
+      video.style.objectFit = 'contain';
+      video.controls = true;
+      video.autoplay = true;
+      video.playsInline = true;
+      
+      // Use Tauri's convertFileSrc to get proper file:// URL
+      try {
+        if (isTauri) {
+          const { convertFileSrc } = await import('@tauri-apps/api/core');
+          const convertedSrc = convertFileSrc(filePath);
+          console.log("📁 Converted file src:", convertedSrc);
+          video.src = convertedSrc;
+        } else {
+          // Fallback for non-Tauri (shouldn't happen, but just in case)
+          video.src = `file:///${filePath}`;
+        }
+      } catch (error) {
+        console.error("❌ Error converting file src:", error);
+        // Fallback: try direct file path
+        video.src = filePath;
+      }
+
+      const savedProgress = getVideoProgress(currentVideoId);
+      if (savedProgress > 0) {
+        video.currentTime = savedProgress;
+      }
+
+      video.addEventListener('loadedmetadata', () => {
+        console.log("✅ Video metadata loaded, duration:", video.duration);
+        setIsPlayerReady(true);
+        if (savedProgress > 0 && savedProgress < video.duration * 0.95) {
+          video.currentTime = savedProgress;
+        }
+      });
+
+      video.addEventListener('loadstart', () => {
+        console.log("🔄 Video load started");
+      });
+
+      video.addEventListener('canplay', () => {
+        console.log("▶️ Video can play");
+      });
+
+      video.addEventListener('error', (e) => {
+        console.error("❌ Video error:", e);
+        console.error("❌ Video error code:", video.error?.code);
+        console.error("❌ Video error message:", video.error?.message);
+        console.error("❌ Video src:", video.src);
+      });
+
+      video.addEventListener('play', () => {
+        console.log("▶️ Video playing");
+        setIsPlaying(true);
+      });
+
+      video.addEventListener('pause', () => {
+        console.log("⏸️ Video paused");
+        setIsPlaying(false);
+        saveVideoProgress(currentVideoId, video.currentTime);
+      });
+
+      video.addEventListener('ended', () => {
+        console.log("⏹️ Video ended");
+        goToNextVideo();
+      });
+
+      video.addEventListener('timeupdate', () => {
+        // Save progress every 5 seconds
+        if (Math.floor(video.currentTime) % 5 === 0) {
+          saveVideoProgress(currentVideoId, video.currentTime);
+        }
+      });
+
+      playerContainerRef.current.appendChild(video);
+      localVideoRef.current = video;
+      console.log("✅ Local video element added to player container");
+      return;
+    }
+
+    // Handle YouTube videos
+    if (!window.YT) {
+      console.warn("YouTube API not loaded yet");
+      return;
+    }
+
     playerContainerRef.current.innerHTML = '';
     try {
       playerRef.current = new window.YT.Player(playerContainerRef.current, {
@@ -4585,21 +4951,38 @@ export default function YouTubePlaylistPlayer() {
   };
 
   useEffect(() => {
+    // For local files, initialize immediately
+    if (isLocalFile(currentVideoId)) {
+      initializePlayer();
+      return () => {
+        if (localVideoRef.current && currentVideoId) {
+          saveVideoProgress(currentVideoId, localVideoRef.current.currentTime);
+        }
+        destroyPlayer();
+      };
+    }
+
+    // For YouTube videos, load API if needed
     if (!window.YT) {
       const tag = document.createElement('script');
       tag.src = "https://www.youtube.com/iframe_api";
-      window.onYouTubeIframeAPIReady = initializePlayer;
+      window.onYouTubeIframeAPIReady = () => initializePlayer();
       document.head.appendChild(tag);
-    } else initializePlayer();
+    } else {
+      initializePlayer();
+    }
     return () => {
-      if (playerRef.current && currentVideoId && typeof playerRef.current.getCurrentTime === 'function') saveVideoProgress(currentVideoId, playerRef.current.getCurrentTime());
+      if (playerRef.current && currentVideoId && !isLocalFile(currentVideoId) && typeof playerRef.current.getCurrentTime === 'function') {
+        saveVideoProgress(currentVideoId, playerRef.current.getCurrentTime());
+      }
       destroyPlayer();
     };
   }, [currentVideoId]);
 
   useEffect(() => {
     let interval;
-    if (isPlaying && playerRef.current && currentVideoId && typeof playerRef.current.getCurrentTime === 'function') {
+    // Only save progress for YouTube videos (local files handle it via timeupdate event)
+    if (isPlaying && !isLocalFile(currentVideoId) && playerRef.current && currentVideoId && typeof playerRef.current.getCurrentTime === 'function') {
       interval = setInterval(() => {
         if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') saveVideoProgress(currentVideoId, playerRef.current.getCurrentTime());
       }, 5000);
@@ -4613,6 +4996,13 @@ export default function YouTubePlaylistPlayer() {
       setAverageColor('rgba(16, 16, 16, 0.7)');
       return;
     }
+    
+    // For local files, use default color (could extract from video frame later)
+    if (isLocalFile(currentVideoId)) {
+      setAverageColor('rgba(16, 16, 16, 0.7)');
+      return;
+    }
+
     const getAverageColor = (imgUrl) => {
       const img = new Image();
       img.crossOrigin = "Anonymous";
@@ -4909,6 +5299,15 @@ export default function YouTubePlaylistPlayer() {
                         title="Import playlist or tab from file (auto-detects file type)"
                       >
                         <Upload size={18} />
+                      </button>
+                    )}
+                    {isTauri && (
+                      <button 
+                        onClick={handleAddLocalFolder}
+                        className="bg-purple-500/80 hover:bg-purple-500 text-white p-2 rounded flex items-center gap-1"
+                        title="Add local video files or folder as playlist"
+                      >
+                        <Folder size={18} />
                       </button>
                     )}
                     <button className="bg-blue-500 text-white p-2 rounded" onClick={handleAddPlaylist} disabled={!userId}>Add Playlist</button>
@@ -5378,7 +5777,7 @@ export default function YouTubePlaylistPlayer() {
                               return (
                                 <button key={playlist.id} onClick={() => addPlaylistToTab(playlist.id)} className="text-left group">
                                   <div className="aspect-video bg-gray-800 rounded-lg overflow-hidden relative">
-                                    <img src={thumbnailVideoId ? `https://img.youtube.com/vi/${thumbnailVideoId}/mqdefault.jpg` : '/no-thumb.jpg'} alt={playlist.name} className="w-full h-full object-cover"/>
+                                    <img src={getVideoThumbnail(thumbnailVideoId)} alt={playlist.name} className="w-full h-full object-cover"/>
                                   </div>
                                   <h3 className="mt-2 text-sm truncate text-white group-hover:text-blue-400">{playlist.name}</h3>
                                   <p className="text-xs text-white/40 mt-1">{playlist.videos.length} videos</p>
@@ -5409,6 +5808,13 @@ export default function YouTubePlaylistPlayer() {
                               title="Fetch metadata for all videos (ONE-TIME - stored permanently in database)"
                             >
                               <Database size={20} />
+                            </button>
+                            <button 
+                              onClick={() => handleAddLocalVideosToPlaylist(displayedPlaylist.id)}
+                              className="text-white bg-purple-500/80 hover:bg-purple-500 p-2 rounded-full"
+                              title="Add local video files (.mp4, .webm) to this playlist"
+                            >
+                              <Folder size={20} />
                             </button>
                             <button 
                               onClick={() => handleOverwritePlaylist(displayedPlaylist.id)}
@@ -5783,7 +6189,7 @@ export default function YouTubePlaylistPlayer() {
                     <div key={entry.id} className="group">
                       <button onClick={() => { const pIdx = playlists.findIndex(p => p.id === entry.playlistId); if (pIdx !== -1) { const vIdx = playlists[pIdx].videos.findIndex(v => v.id === entry.videoId); if (vIdx !== -1) selectVideoFromMenu(vIdx, entry.playlistId) } }} className={`w-full text-left flex items-center gap-4 p-2 rounded-lg hover:bg-white/10 ${currentVideoId === entry.videoId ? 'ring-2 ring-blue-500' : ''}`}>
                         <div className="w-32 aspect-video bg-gray-800 rounded-lg overflow-hidden relative flex-shrink-0">
-                          <img src={entry.videoId ? `https://img.youtube.com/vi/${entry.videoId}/mqdefault.jpg` : '/no-thumb.jpg'} alt={entry.title} className="w-full h-full object-cover" loading="lazy"/>
+                          <img src={getVideoThumbnail(entry.videoId)} alt={entry.title} className="w-full h-full object-cover" loading="lazy"/>
                         </div>
                         <div>
                           <h3 
@@ -6023,7 +6429,7 @@ export default function YouTubePlaylistPlayer() {
                   className="text-left group"
                 >
                   <div className="aspect-video bg-gray-800 rounded-lg overflow-hidden relative">
-                    <img src={playlist.videos[0]?.id ? `https://img.youtube.com/vi/${playlist.videos[0].id}/mqdefault.jpg` : '/no-thumb.jpg'} alt={playlist.name} className="w-full h-full object-cover"/>
+                    <img src={getVideoThumbnail(playlist.videos[0]?.id)} alt={playlist.name} className="w-full h-full object-cover"/>
                   </div>
                   <h3 className="mt-2 text-sm truncate text-white group-hover:text-blue-400">{playlist.name}</h3>
                 </button>
@@ -6295,7 +6701,7 @@ export default function YouTubePlaylistPlayer() {
                   className="text-left group"
                 >
                   <div className="aspect-video bg-gray-800 rounded-lg overflow-hidden relative">
-                    <img src={playlist.videos[0]?.id ? `https://img.youtube.com/vi/${playlist.videos[0].id}/mqdefault.jpg` : '/no-thumb.jpg'} alt={playlist.name} className="w-full h-full object-cover"/>
+                    <img src={getVideoThumbnail(playlist.videos[0]?.id)} alt={playlist.name} className="w-full h-full object-cover"/>
                   </div>
                   <h3 className="mt-2 text-sm truncate text-white group-hover:text-blue-400">{playlist.name}</h3>
                   <p className="text-white/60 text-xs">{playlist.videos.length} videos</p>
@@ -6342,7 +6748,7 @@ export default function YouTubePlaylistPlayer() {
                       className="text-left group w-full"
                     >
                       <div className="aspect-video bg-gray-800 rounded-lg overflow-hidden relative">
-                        <img src={playlist.videos[0]?.id ? `https://img.youtube.com/vi/${playlist.videos[0].id}/mqdefault.jpg` : '/no-thumb.jpg'} alt={playlist.name} className="w-full h-full object-cover"/>
+                        <img src={getVideoThumbnail(playlist.videos[0]?.id)} alt={playlist.name} className="w-full h-full object-cover"/>
                       </div>
                       <h3 className="mt-2 text-sm truncate text-white group-hover:text-blue-400">{playlist.name}</h3>
                       <p className="text-white/60 text-xs">{playlist.videos.length} videos</p>

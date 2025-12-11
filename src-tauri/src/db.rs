@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::OnceLock;
 use std::fs;
 use std::collections::HashSet;
+use std::ffi::OsStr;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UserData {
@@ -1158,5 +1159,119 @@ pub fn save_video_metadata_batch(metadata: Vec<serde_json::Value>) -> Result<(),
     tx.commit().map_err(|e| e.to_string())?;
     
     Ok(())
+}
+
+/// Scan a folder for video files (.mp4, .webm) recursively
+#[tauri::command]
+pub fn scan_local_folder(folder_path: String) -> Result<Vec<serde_json::Value>, String> {
+    eprintln!("📁 Received folder path: {}", folder_path);
+    
+    let path = PathBuf::from(&folder_path);
+    eprintln!("📁 Converted to PathBuf: {:?}", path);
+    
+    if !path.exists() {
+        eprintln!("❌ Path does not exist: {:?}", path);
+        return Err(format!("Folder does not exist: {}", folder_path));
+    }
+    
+    if !path.is_dir() {
+        eprintln!("❌ Path is not a directory: {:?}", path);
+        return Err(format!("Path is not a directory: {}", folder_path));
+    }
+    
+    eprintln!("✅ Path exists and is a directory");
+    
+    let mut video_files = Vec::new();
+    let video_extensions = ["mp4", "webm"]; // Will be compared case-insensitively
+    
+    fn scan_directory(dir: &PathBuf, extensions: &[&str], files: &mut Vec<serde_json::Value>) -> Result<(), String> {
+        eprintln!("📂 Scanning directory: {:?}", dir);
+        eprintln!("📂 Directory exists: {}", dir.exists());
+        eprintln!("📂 Is directory: {}", dir.is_dir());
+        
+        let entries = fs::read_dir(dir).map_err(|e| {
+            eprintln!("❌ Error reading directory {:?}: {}", dir, e);
+            eprintln!("❌ Error kind: {:?}", e.kind());
+            format!("Failed to read directory: {} (kind: {:?})", e, e.kind())
+        })?;
+        
+        let mut entry_count = 0;
+        let mut file_count = 0;
+        let mut video_count = 0;
+        let mut dir_count = 0;
+        
+        for entry in entries {
+            entry_count += 1;
+            let entry = entry.map_err(|e| {
+                eprintln!("❌ Error reading entry #{}: {}", entry_count, e);
+                format!("Failed to read entry: {}", e)
+            })?;
+            let path = entry.path();
+            
+            eprintln!("🔍 Processing entry #{}: {:?}", entry_count, path);
+            
+            if path.is_dir() {
+                dir_count += 1;
+                eprintln!("📁 Found subdirectory: {:?}", path);
+                // Recursively scan subdirectories
+                scan_directory(&path, extensions, files)?;
+            } else if path.is_file() {
+                file_count += 1;
+                eprintln!("📄 Found file #{}: {:?}", file_count, path.file_name().unwrap_or_default());
+                
+                // Check if file has a video extension
+                if let Some(ext) = path.extension().and_then(OsStr::to_str) {
+                    eprintln!("   Extension: {}", ext);
+                    let ext_lower = ext.to_lowercase();
+                    eprintln!("   Extension (lowercase): {}", ext_lower);
+                    
+                    let is_video = extensions.iter().any(|&e| {
+                        let e_lower = e.to_lowercase();
+                        let matches = e_lower == ext_lower;
+                        if matches {
+                            eprintln!("   ✅ Matches extension: {}", e);
+                        }
+                        matches
+                    });
+                    
+                    if is_video {
+                        video_count += 1;
+                        let file_path = path.to_string_lossy().to_string();
+                        let file_name = path.file_name()
+                            .and_then(OsStr::to_str)
+                            .unwrap_or("Unknown")
+                            .to_string();
+                        
+                        eprintln!("✅ Found video file #{}: {} ({})", video_count, file_name, file_path);
+                        
+                        // Use file:// prefix to identify local files
+                        // Keep Windows backslashes as-is, they'll be handled by Tauri
+                        let video_id = format!("local:file://{}", file_path);
+                        
+                        files.push(serde_json::json!({
+                            "id": video_id,
+                            "title": file_name,
+                            "duration": 0, // Will be determined later if needed
+                            "filePath": file_path
+                        }));
+                    } else {
+                        eprintln!("   ❌ Not a video extension (looking for: {:?})", extensions);
+                    }
+                } else {
+                    eprintln!("⚠️ File has no extension: {:?}", path.file_name().unwrap_or_default());
+                }
+            } else {
+                eprintln!("⚠️ Entry is neither file nor directory: {:?}", path);
+            }
+        }
+        
+        eprintln!("📊 Directory scan complete: {} total entries, {} directories, {} files, {} videos", entry_count, dir_count, file_count, video_count);
+        Ok(())
+    }
+    
+    scan_directory(&path, &video_extensions, &mut video_files)?;
+    
+    eprintln!("✅ Total videos found: {}", video_files.len());
+    Ok(video_files)
 }
 

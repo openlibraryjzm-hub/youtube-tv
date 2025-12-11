@@ -10,9 +10,17 @@ git add .
 # Create commit message in temp file
 $tempFile = "commit-msg-temp.txt"
 $commitMessage = @"
-[AI] Major Feature Updates: Configure Playlist Modal & Video Metadata System
+[AI] Major Feature: Local File Support + Enhanced Playlist Features
 
 Changes:
+- Local File Support (NEW - Major Feature)
+  - Add local video files (.mp4, .webm) to playlists alongside YouTube videos
+  - Two methods: Folder scanning (recursive) or individual file selection
+  - HTML5 video player for local files, automatic detection vs YouTube videos
+  - Progress tracking and resume playback for local videos
+  - File paths stored with local:file:// prefix, absolute paths preserved
+  - Purple Folder icon button in playlist add bar and playlist videos view
+  - Thumbnail placeholders for local files (extract frames later)
 - Enhanced "Configure Playlist" mode with existing playlist support
   - Option to create new playlist OR add to existing playlist
   - When existing playlist selected, color dropdown shows custom folder names
@@ -39,22 +47,21 @@ Changes:
   - Improved modal layouts and user experience
 
 Files Modified:
-- app/page.jsx (configure playlist enhancements, metadata system, UI improvements)
-- src-tauri/src/db.rs (video_metadata table, batch save/get commands)
-- src-tauri/src/main.rs (registered new metadata commands)
-- AI-ONBOARDING-PROMPT.md (updated with new features)
-- METADATA-FETCHING-SOLUTION.md (new documentation file)
+- app/page.jsx (local file support, player handling, UI buttons, configure playlist enhancements, metadata system)
+- src-tauri/src/db.rs (scan_local_folder command for recursive folder scanning)
+- src-tauri/src/main.rs (registered scan_local_folder command)
+- AI-ONBOARDING-PROMPT.md (updated with local file features)
 - push-documentation-updates.ps1 (this file)
 
 Technical Details:
+- Local files: Uses Tauri convertFileSrc for proper file:// URL handling
+- Player: Automatic detection between local files (HTML5) and YouTube (IFrame API)
+- Folder scanning: Recursively scans for .mp4 and .webm files, case-insensitive
+- File selection: Multiple file picker with .mp4/.webm filter
 - Configure playlist: Creates/updates playlists with colored folders pre-configured
-- Each source playlist populates its assigned colored folder
-- Videos are fetched and organized automatically
 - Metadata: Fetched once per video, stored in SQLite forever (like thumbnails)
-- Metadata cost: ~400 API calls for 20,000 videos (one-time, free tier covers it)
 - Import/export supports both individual playlists and full tab structures
 - All changes persist immediately without requiring app restart
-- User preference: OK with outdated metadata - just want it stored permanently
 "@
 
 # Write to temp file
