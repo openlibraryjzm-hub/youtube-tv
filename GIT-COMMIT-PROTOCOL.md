@@ -64,33 +64,32 @@ Files Modified:
 
 ## Commit Workflow
 
-### Step 1: Make Changes
-- User provides prompt/request
-- AI makes code/documentation changes
-- Changes are saved to files
+### When User Requests a Git Push
 
-### Step 2: Stage Changes
-```bash
-git add .
-# or specific files
-git add app/page.jsx DOCUMENTATION.md
+**Step 1: Analyze Changes**
+- Check `git status` to see all changes since last push
+- Review modified/deleted/new files
+- Identify what was changed in current session
+
+**Step 2: Update push-to-github.ps1 Script**
+- Open `push-to-github.ps1`
+- Update the commit message with current, accurate information:
+  - List all changes made
+  - List all files modified/deleted/created
+  - Include user's exact request
+- Save the script
+
+**Step 3: User Runs Script**
+```powershell
+.\push-to-github.ps1
 ```
 
-### Step 3: Create Commit with Prompt
-```bash
-git commit -m "[AI] User Request: \"[exact prompt]\"
+**Step 4: Script Executes**
+- Stages all changes (`git add .`)
+- Commits with updated message
+- Pushes to GitHub (`git push origin main`)
 
-Changes:
-- [list changes]
-- [files modified]
-
-Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
-```
-
-### Step 4: Push to GitHub
-```bash
-git push origin main
-```
+**This ensures commit messages are always accurate and reflect current state.**
 
 ## Implementation for AI Agents
 

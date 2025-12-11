@@ -44,32 +44,33 @@ DOCUMENTATION MAINTENANCE (MANDATORY - DO AS YOU GO):
 
 GIT WORKFLOW (ONLY WHEN USER REQUESTS):
 - ⚠️ IMPORTANT: Only commit when user explicitly requests it. Never automatically commit or push.
-- When user requests commit/push, use this EXACT format:
 
+When user requests a git push:
+1. Analyze all changes made since last git push (check git status, review modified/deleted/new files)
+2. Update push-to-github.ps1 script's commit message with current, accurate information:
+   - List all changes made
+   - List all files modified/deleted/created
+   - Include user's exact request in commit message
+3. User then runs: .\push-to-github.ps1
+4. Script stages, commits, and pushes with up-to-date information
+
+Commit Message Format (in script):
 [AI] User Request: "[exact user prompt]"
 
 Changes:
-- [List of specific changes made]
+- [List of specific changes made since last push]
 - [Files modified]
-- [Functions added/modified]
-
-Example:
-[AI] User Request: "add bulk delete feature for playlists"
-
-Changes:
-- Added bulkDeleteMode state variable
-- Implemented handleBulkDeletePlaylists() function
-- Added bulk delete UI in playlists screen
-- Updated AI-ONBOARDING-PROMPT.md (patterns section)
+- [Files deleted]
+- [Files created]
 
 Files Modified:
-- app/page.jsx (lines 297-417: state, 214-219: functions, 4263-5166: UI)
-- AI-ONBOARDING-PROMPT.md
+- [List of modified files with brief description]
 
-Commands:
-1. git add .
-2. git commit -m "[AI] User Request: \"[exact prompt]\"\n\nChanges:\n- [list changes]"
-3. git push origin main (if user requested push)
+Files Deleted:
+- [List of deleted files]
+
+Files Created:
+- [List of new files]
 
 GitHub Repository:
 - Remote URL: https://github.com/openlibraryjzm-hub/youtube-tv.git

@@ -1003,16 +1003,20 @@ What would you like to work on?
 - Deletes older session tags (local and remote)
 - Prevents tag clutter
 
-**push-to-github.ps1** - Push to GitHub (legacy)
+**push-to-github.ps1** - Push to GitHub (AI updates commit message before user runs)
 ```powershell
 .\push-to-github.ps1
 ```
+**Protocol:**
+- When user requests a push, AI analyzes all changes since last push
+- AI updates the script's commit message with current, accurate information
+- User then runs the script to commit and push
+- Ensures commit messages are always accurate and reflect current state
+
 **What it does:**
-- Initializes git if needed
-- Adds all files
-- Commits with default message
-- Pushes to GitHub
-- **Note:** Hardcoded paths, may need updating
+- Stages all changes (`git add .`)
+- Commits with AI-updated message
+- Pushes to GitHub (`git push origin main`)
 
 ### Legacy Scripts (Electron Era - Outdated)
 
@@ -1127,26 +1131,54 @@ node analyze-bottlenecks.js
 
 ## 🔄 Git Workflow
 
-### Commit Protocol (When User Requests)
+### Push Protocol (When User Requests)
 
-**⚠️ IMPORTANT: Only commit when the user explicitly requests it. Do NOT automatically commit changes.**
+**⚠️ IMPORTANT: Only commit/push when the user explicitly requests it. Do NOT automatically commit changes.**
 
-**When the user requests a commit or push, use this format:**
+**When the user requests a git push:**
+
+1. **Analyze all changes** since last git push:
+   - Check `git status` to see modified/deleted/new files
+   - Review what changes were made in the current session
+   - Identify all files affected
+
+2. **Update `push-to-github.ps1` script** with current information:
+   - Update the commit message in the script with accurate changes
+   - List all files modified/deleted/created
+   - Include user's exact request
+   - Ensure commit message reflects current state
+
+3. **User runs the script:**
+   ```powershell
+   .\push-to-github.ps1
+   ```
+
+4. **Script handles:**
+   - Stages all changes (`git add .`)
+   - Commits with the updated message
+   - Pushes to GitHub (`git push origin main`)
+
+**Commit Message Format (in script):**
 ```
 [AI] User Request: "[exact user prompt]"
 
 Changes:
-- [List of specific changes]
+- [List of specific changes made since last push]
 - [Files modified]
+- [Files deleted]
+- [Files created]
+
+Files Modified:
+- [List with brief descriptions]
+
+Files Deleted:
+- [List of deleted files]
+
+Files Created:
+- [List of new files]
 ```
 
-**Workflow (when user requests):**
-1. Make code changes
-2. Stage: `git add .`
-3. Commit: `git commit -m "[AI] User Request: \"[prompt]\" ..."`
-4. Push: `git push origin main` (if user requested push)
-
-**This creates a complete audit trail from prompt → code → commit.**
+**This ensures the commit message is always accurate and up-to-date when the user pushes.**
 
 ### Session Checkpoints (When User Requests)
 
