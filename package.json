@@ -3,21 +3,27 @@
   "version": "0.1.0",
   "private": true,
   "main": "electron/main.js",
+  "bin": "server.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postbuild": "node scripts/verify-standalone.js && node scripts/prune-standalone.js",
+    "postbuild": "echo postbuild disabled for Tauri",
     "postpack": "node scripts/ensure-node-modules-in-package.js && node scripts/verify-packaged.js",
     "prebuild:electron": "node scripts/ensure-complete-build.js",
     "electron:dev": "cross-env NODE_ENV=development electron .",
     "electron:build": "next build && npm run postbuild && electron-builder",
     "prepack:electron": "node scripts/ensure-node-modules-in-package.js",
     "electron:build:win": "npm run build && npm run postbuild && npm run prepack:electron && electron-builder --win",
-    "dist": "npm run electron:build:win"
+    "dist": "npm run electron:build:win",
+    "tauri": "tauri",
+    "tauri:build": "npm run build && tauri build",
+    "tauri:build:clean": "powershell -Command \"Remove-Item -Recurse -Force out -ErrorAction SilentlyContinue; Remove-Item -Recurse -Force src-tauri\\target -ErrorAction SilentlyContinue; npm run build; tauri build\""
   },
   "dependencies": {
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-shell": "^2.3.3",
     "better-sqlite3": "^12.5.0",
     "lucide-react": "^0.441.0",
     "next": "^14.2.5",
@@ -26,6 +32,8 @@
     "react-window": "^2.2.0"
   },
   "devDependencies": {
+    "@tauri-apps/api": "^2.9.1",
+    "@tauri-apps/cli": "^2.9.5",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.20",
@@ -42,5 +50,21 @@
   "license": "ISC",
   "build": {
     "extends": "electron-builder.json"
+  },
+  "pkg": {
+    "scripts": [
+      "build/**/*.js",
+      "server.js"
+    ],
+    "assets": [
+      ".next/**/*",
+      "public/**/*",
+      "node_modules/**/*",
+      "node_modules/better-sqlite3/build/Release/**/*"
+    ],
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "dist"
   }
 }

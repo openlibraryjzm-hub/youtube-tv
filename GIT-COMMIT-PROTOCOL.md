@@ -8,11 +8,13 @@
 
 ## Protocol Overview
 
-**Core Principle:** Every code change is automatically committed and pushed to GitHub with:
+**Core Principle:** When the user requests a commit or push to GitHub, commit with:
 1. The user's prompt/request that triggered the change
 2. Description of what was changed
 3. Automatic timestamp (via git)
 4. Full traceability from prompt → code → commit
+
+**⚠️ IMPORTANT:** Only commit when the user explicitly requests it. Do NOT automatically commit changes.
 
 ## Commit Message Format
 
@@ -43,8 +45,7 @@ Changes:
 
 Files Modified:
 - app/page.jsx (lines 297-417: state, 214-219: functions, 4263-5166: UI)
-- STATE-MANAGEMENT.md
-- CODE-STRUCTURE.md
+- AI-ONBOARDING-PROMPT.md (patterns section)
 ```
 
 ## When to Commit
@@ -93,15 +94,17 @@ git push origin main
 
 ## Implementation for AI Agents
 
-### Automatic Commit Function
+### Commit Function (When User Requests)
 
-AI agents should follow this pattern after EVERY code change:
+**⚠️ Only use this when the user explicitly requests a commit or push to GitHub.**
+
+When the user requests a commit, follow this pattern:
 
 1. **Capture the user's prompt** - Store exact user request
 2. **List all changes made** - Track what was modified
 3. **Stage files** - `git add .` or specific files
 4. **Create commit** - Use format above
-5. **Push to remote** - `git push origin main`
+5. **Push to remote** - `git push origin main` (if user requested push)
 
 ### PowerShell Script Template
 
@@ -212,10 +215,10 @@ This protocol **enhances** the existing session checkpoint system:
 - **Automatic Commits** - Happen during session for each change
 - **Version Tags** - Still create for major milestones
 
-### Combined Workflow
-1. **During Session:** Automatic commits after each change
-2. **End of Session:** Create session checkpoint tag
-3. **Major Milestone:** Create version tag
+### Combined Workflow (When User Requests Commits)
+1. **When User Requests Commit:** Use this protocol format
+2. **End of Session:** Create session checkpoint tag (if user requests)
+3. **Major Milestone:** Create version tag (if user requests)
 
 ## Troubleshooting
 
@@ -271,13 +274,15 @@ End of session:
 
 ## Related Documentation
 
-- **[GIT-WORKFLOW.md](./GIT-WORKFLOW.md)** - General git workflow and session checkpoints
+- **[AI-ONBOARDING-PROMPT.md](./AI-ONBOARDING-PROMPT.md)** - AI agent onboarding (includes git workflow summary)
+- **[GIT-WORKFLOW.md](./GIT-WORKFLOW.md)** - Detailed git workflow and session checkpoints
 - **[DOCUMENTATION-MAINTENANCE.md](./DOCUMENTATION-MAINTENANCE.md)** - Documentation update strategy
-- **[AI-ONBOARDING-PROMPT.md](./AI-ONBOARDING-PROMPT.md)** - AI agent onboarding
 
 ---
 
 **Remember:** Every code change = One commit with prompt = Full traceability
+
+
 
 
 

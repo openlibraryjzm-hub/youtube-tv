@@ -70,42 +70,132 @@ import {
 // Firebase imports removed - using local database via API routes instead
 // import { collection, query, orderBy, limit, deleteDoc, setDoc, doc, onSnapshot, updateDoc, getDocs, writeBatch, where, deleteField } from "firebase/firestore";
 
-// Local Database API Helpers
-const API_BASE = '/api/user';
+// Tauri Database Helpers (for packaged app) or API routes (for dev)
+// Check for Tauri in multiple ways (Tauri v2)
+const isTauri = typeof window !== 'undefined' && (
+  window.__TAURI_INTERNALS__ !== undefined ||
+  window.__TAURI__ !== undefined ||
+  (window.__TAURI_METADATA__ !== undefined)
+);
+
+// Log detection result on load
+if (typeof window !== 'undefined') {
+  console.log('🔍 Tauri detection:', {
+    isTauri,
+    __TAURI_INTERNALS__: window.__TAURI_INTERNALS__ !== undefined,
+    __TAURI__: window.__TAURI__ !== undefined,
+    __TAURI_METADATA__: window.__TAURI_METADATA__ !== undefined,
+    userAgent: navigator.userAgent,
+  });
+}
+
+// Helper to get Tauri invoke function with better error handling
+const getInvoke = async () => {
+  if (!isTauri) {
+    console.log('🔍 Not in Tauri environment, will use API routes');
+    return null;
+  }
+  
+  try {
+    // Tauri v2 uses @tauri-apps/api/core
+    const { invoke } = await import('@tauri-apps/api/core');
+    console.log('✅ Tauri API loaded successfully');
+    return invoke;
+  } catch (error) {
+    console.error('❌ Failed to load Tauri API:', error);
+    console.log('⚠️ Falling back to API routes');
+    return null;
+  }
+};
 
 // Fetch user data from local database
 const fetchUserData = async (userId) => {
-  const response = await fetch(`${API_BASE}/${userId}`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch user data: ${response.statusText}`);
+  console.log(`📥 fetchUserData called for userId: ${userId}`);
+  console.log(`🔍 Tauri detected: ${isTauri}`);
+  
+  const invoke = await getInvoke();
+  if (invoke) {
+    try {
+      console.log('📞 Calling Tauri command: get_user_data');
+      const result = await invoke('get_user_data', { userId });
+      console.log('✅ Tauri command succeeded:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ Tauri command failed:', error);
+      // Show error to user
+      if (typeof window !== 'undefined') {
+        alert(`Database Error: ${error}\n\nCheck console for details.`);
+      }
+      throw error;
+    }
+  } else {
+    // Fallback to API route for development
+    console.log('📡 Using API route fallback');
+    try {
+      const response = await fetch(`/api/user/${userId}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch user data: ${response.statusText}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('❌ API route failed:', error);
+      throw error;
+    }
   }
-  return await response.json();
 };
 
 // Save user data to local database
 const saveUserData = async (userId, data) => {
-  const response = await fetch(`${API_BASE}/${userId}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to save user data: ${response.statusText}`);
+  console.log(`💾 saveUserData called for userId: ${userId}`);
+  const invoke = await getInvoke();
+  if (invoke) {
+    try {
+      console.log('📞 Calling Tauri command: save_user_data');
+      await invoke('save_user_data', { userId, data });
+      console.log('✅ Tauri command succeeded');
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Tauri command failed:', error);
+      throw error;
+    }
+  } else {
+    // Fallback to API route for development
+    console.log('📡 Using API route fallback');
+    const response = await fetch(`/api/user/${userId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to save user data: ${response.statusText}`);
+    }
+    return await response.json();
   }
-  return await response.json();
 };
 
 // Save video progress to local database
 const saveVideoProgress = async (userId, videoProgress) => {
-  const response = await fetch(`${API_BASE}/${userId}/progress`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ videoProgress })
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to save video progress: ${response.statusText}`);
+  const invoke = await getInvoke();
+  if (invoke) {
+    try {
+      await invoke('save_video_progress', { userId, videoProgress });
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Tauri command failed:', error);
+      throw error;
+    }
+  } else {
+    // Fallback to API route for development
+    const response = await fetch(`/api/user/${userId}/progress`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ videoProgress })
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to save video progress: ${response.statusText}`);
+    }
+    return await response.json();
   }
-  return await response.json();
 };
 
 // Configuration management
@@ -954,6 +1044,41 @@ export default function YouTubePlaylistPlayer() {
     setUserId(persistentUserId);
   }, []);
 
+  // Add keyboard shortcut for devtools (F12 or Ctrl+Shift+I)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleKeyDown = async (event) => {
+      // F12 or Ctrl+Shift+I
+      if (event.key === 'F12' || (event.ctrlKey && event.shiftKey && event.key === 'I')) {
+        event.preventDefault();
+        if (isTauri) {
+          try {
+            // Use Tauri API directly to open devtools
+            const { getCurrentWindow } = await import('@tauri-apps/api/window');
+            const appWindow = getCurrentWindow();
+            // Toggle devtools - try to open it
+            // Note: In Tauri v2, devtools might need to be enabled in config
+            await appWindow.setFocus();
+            // For now, just log - devtools opening might need different approach
+            console.log('Devtools shortcut pressed - check Tauri config for devtools support');
+          } catch (error) {
+            console.error('Failed to toggle devtools:', error);
+            console.log('Tip: Devtools may need to be enabled in tauri.conf.json');
+          }
+        } else {
+          // In browser, just use the default behavior
+          console.log('Devtools shortcut pressed (browser mode)');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
   // Expose recovery function (disabled for local database - data is per-user)
   useEffect(() => {
     if (!userId) return;
@@ -972,20 +1097,71 @@ export default function YouTubePlaylistPlayer() {
     
     const loadData = async () => {
       try {
+        // Test Tauri connection first if in Tauri environment
+        if (isTauri) {
+          const invoke = await getInvoke();
+          if (invoke) {
+            try {
+              console.log('🧪 Testing database connection...');
+              const testResult = await invoke('test_db_connection', {});
+              console.log('✅ Database test result:', testResult);
+              
+              // Check default channels status
+              console.log('🔍 Checking default channels status...');
+              const channelsStatus = await invoke('check_default_channels', {});
+              console.log('📊 Default channels status:', channelsStatus);
+              
+              // If no defaults loaded, try to force initialize
+              if (channelsStatus.includes('Default playlists in DB: 0')) {
+                console.log('⚠️ No default channels found, attempting to initialize...');
+                try {
+                  const initResult = await invoke('force_initialize_default_channels', {});
+                  console.log('✅', initResult);
+                } catch (initError) {
+                  console.error('❌ Failed to initialize default channels:', initError);
+                }
+              }
+            } catch (testError) {
+              console.error('❌ Database test failed:', testError);
+              alert(`Database Connection Error: ${testError}\n\nThis might be a build issue. Make sure you ran "npm run build" before "npx tauri build".`);
+            }
+          }
+        }
+        
         if (!hasLoadedInitialDataRef.current) {
           hasLoadedInitialDataRef.current = true;
           console.log(`📥 Initial data load from local database`);
         }
         
-        const data = await fetchUserData(userId);
-        console.log(`📦 Local database data loaded:`, {
-          playlistCount: data.playlists?.length || 0,
-          tabCount: data.playlistTabs?.length || 0,
-          videoProgressCount: Object.keys(data.videoProgress || {}).length
-        });
+        let data;
+        try {
+          data = await fetchUserData(userId);
+          console.log(`📦 Local database data loaded:`, {
+            playlistCount: data.playlists?.length || 0,
+            tabCount: data.playlistTabs?.length || 0,
+            videoProgressCount: Object.keys(data.videoProgress || {}).length
+          });
+        } catch (error) {
+          console.error('❌ Failed to load user data, using defaults:', error);
+          // Use empty data structure if fetch fails
+          data = {
+            playlists: [],
+            playlistTabs: [],
+            customColors: {},
+            colorOrder: [],
+            videoProgress: {}
+          };
+        }
         
-        let finalPlaylists = data.playlists || initialPlaylists;
-        const finalTabs = data.playlistTabs || [{ name: 'All', playlistIds: [] }];
+        // Use data from database, or fall back to initial playlists if empty
+        let finalPlaylists = data.playlists && data.playlists.length > 0 
+          ? data.playlists 
+          : initialPlaylists;
+        const finalTabs = data.playlistTabs && data.playlistTabs.length > 0
+          ? data.playlistTabs
+          : [{ name: 'All', playlistIds: [] }];
+        
+        console.log(`📊 Final playlists count: ${finalPlaylists.length}, tabs: ${finalTabs.length}`);
         
         // Load custom colors and color order
         if (data.customColors) {
@@ -1128,14 +1304,30 @@ export default function YouTubePlaylistPlayer() {
         // Mark playlists with videos as fetched this session
         playlistsWithVideos.forEach(id => playlistsFetchedThisSession.current.add(id));
         
+        console.log(`✅ Setting ${finalPlaylists.length} playlists and ${finalTabs.length} tabs`);
         setPlaylists(finalPlaylists);
         setPlaylistTabs(finalTabs);
+        
+        // Log summary
+        const totalVideos = finalPlaylists.reduce((sum, p) => sum + (p.videos?.length || 0), 0);
+        console.log(`📊 Data load complete: ${finalPlaylists.length} playlists, ${totalVideos} total videos`);
+        
+        if (totalVideos === 0) {
+          console.log('ℹ️ No videos found. User needs to add a playlist first.');
+        }
       } catch (error) {
-        console.error("Error fetching data from local database:", error);
-        alert("Failed to load data from local database. Please check the console for details.");
+        console.error("❌ Error fetching data from local database:", error);
+        console.error("Error details:", error.message, error.stack);
+        
+        // Use initial playlists as fallback even on error
+        console.log("🔄 Falling back to initial playlists due to error");
+        setPlaylists(initialPlaylists);
+        setPlaylistTabs([{ name: 'All', playlistIds: [] }]);
+        
+        alert(`Failed to load data from database: ${error.message}\n\nUsing default playlists. Check console for details.`);
       }
     };
-    
+
     loadData();
   }, [userId, isFirebaseInitialized]);
 
@@ -1411,10 +1603,12 @@ export default function YouTubePlaylistPlayer() {
           return typeof videoId === 'string' ? videoId : String(videoId);
         });
         
-        // Build playlist object, preserving representativeVideoId
+        // Build playlist object, preserving representativeVideoId and ensuring all required fields
         const playlistToSave = {
           ...playlist,
-          videos: optimizedVideos
+          videos: optimizedVideos,
+          // Ensure isConvertedFromColoredFolder is always present (default to false)
+          isConvertedFromColoredFolder: playlist.isConvertedFromColoredFolder || false
         };
         
         // Explicitly preserve representativeVideoId if it exists (even if it's an empty string, we want to preserve it)
@@ -1478,6 +1672,11 @@ export default function YouTubePlaylistPlayer() {
           totalVideos: optimizedPlaylists.reduce((sum, p) => sum + (p.videos?.length || 0), 0),
           estimatedSize: `${(estimatedSize / 1024).toFixed(2)} KB`
         });
+        
+        // Show alert to user so they know saves aren't working
+        if (typeof window !== 'undefined' && isTauri) {
+          alert(`⚠️ Failed to save data to local database!\n\nError: ${error.message || error}\n\nYour changes may not persist. Please check console for details.`);
+        }
         isSavingRef.current = false;
       }
     };

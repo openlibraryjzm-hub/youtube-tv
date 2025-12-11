@@ -1,11 +1,19 @@
 # YouTube TV - Master Context Document
-**Last Updated:** 2025-01-06  
-**Version:** 1.0  
+**Last Updated:** 2025-01-09  
+**Version:** 2.0  
 **Document Type:** Project Overview & Architecture
 
-> **🤖 AI Agent Note:** This is the primary entry point for understanding the project. Start here, then navigate to specific topics using cross-references.
+> **🤖 AI Agent Note:** This document contains legacy Firestore architecture context. **For current Tauri architecture, see [TAURI-MIGRATION-COMPLETE-CONTEXT.md](./TAURI-MIGRATION-COMPLETE-CONTEXT.md) and [TAURI-DEVELOPMENT-GUIDE.md](./TAURI-DEVELOPMENT-GUIDE.md) first.**
+>
+> **🆕 Current Architecture:** Tauri v2 desktop app with local SQLite database
+> - **Backend:** Rust (Tauri commands)
+> - **Frontend:** Next.js static export
+> - **Database:** Local SQLite (no cloud dependency)
+> - **Status:** ✅ Production Ready
 >
 > **Related Documentation:**
+> - **[TAURI-MIGRATION-COMPLETE-CONTEXT.md](./TAURI-MIGRATION-COMPLETE-CONTEXT.md)** 🆕 **START HERE** - Complete Tauri migration and working build protocol
+> - **[TAURI-DEVELOPMENT-GUIDE.md](./TAURI-DEVELOPMENT-GUIDE.md)** 🆕 - Tauri-specific development patterns
 > - [CODE-STRUCTURE.md](./CODE-STRUCTURE.md) - Detailed code organization and structure
 > - [STATE-MANAGEMENT.md](./STATE-MANAGEMENT.md) - Complete state variable reference
 > - [PATTERNS.md](./PATTERNS.md) - Recurring code patterns and idioms
@@ -24,77 +32,91 @@
 A sophisticated single-page web application built with Next.js and React, designed as an enhanced front-end for YouTube. Provides a "lean-back," TV-like interface (Netflix-style) for managing and watching large YouTube playlists, particularly those with thousands of videos.
 
 ### 1.2 Core Technologies
-- **Framework:** Next.js 14.2.33 (with React 18)
+
+**Current (Tauri Desktop App):**
+- **Framework:** Next.js 14.2.33 (static export) with React 18
+- **Desktop Wrapper:** Tauri v2 (Rust backend)
+- **Database:** SQLite via `rusqlite` (local file, no cloud)
 - **Styling:** Tailwind CSS
 - **Icons:** lucide-react
-- **Database:** Google Firebase Firestore (data persistence)
-- **Authentication:** Firebase Anonymous Sign-In
 - **Video Playback:** YouTube IFrame Player API
 - **YouTube Data:** YouTube Data API v3 (playlist details, video metadata)
 - **Drag & Drop:** jQuery UI Sortable
 
+**Legacy (Electron/Cloud):**
+- ~~**Database:** Google Firebase Firestore (data persistence)~~ → Migrated to local SQLite
+- ~~**Authentication:** Firebase Anonymous Sign-In~~ → Not needed (local app)
+- **Note:** See [TAURI-MIGRATION-COMPLETE-CONTEXT.md](./TAURI-MIGRATION-COMPLETE-CONTEXT.md) for migration details
+
 ### 1.3 Key Design Principles
 - **Aggressive caching** to minimize API usage
 - **API call minimization:** When in doubt, DON'T make API calls for titles/metadata. Thumbnails, playback, and organization are sufficient.
-- **Separation of concerns:** Persistent data (Firestore) vs session-specific data (React Refs)
-- **Optimized Firebase writes** with debouncing
+- **Separation of concerns:** Persistent data (SQLite database) vs session-specific data (React Refs)
+- **Optimized database writes** with debouncing (2 seconds)
 - **Session-specific shuffle orders** for fresh experience each visit
 - **Local-first architecture** to prevent race conditions
-- **Document size optimization** to stay within Firestore 1MB per-document limit
+- **Zero dependencies:** App works on fresh Windows installs (no Node.js required)
 - **Representative video thumbnails:** Users can assign any video as a playlist's cover image
+- **Resource bundling:** Default channels template bundled in `_up_/` directory
 
 ---
 
 ## 2. ARCHITECTURE & DATA STRUCTURE
 
-> **🤖 AI Agent Note:** Understanding the data model is critical. See DATA-FLOW.md for how this data moves through the system. See GOTCHAS.md#1 for document size constraints.
+> **🤖 AI Agent Note:** **Current architecture uses local SQLite database. See [TAURI-DEVELOPMENT-GUIDE.md](./TAURI-DEVELOPMENT-GUIDE.md) for database schema and [TAURI-MIGRATION-COMPLETE-CONTEXT.md](./TAURI-MIGRATION-COMPLETE-CONTEXT.md) for migration details.**
 
-### 2.1 Firebase Data Model
+### 2.1 Current Data Model (Tauri/SQLite)
 
-**Main User Document:** `/users/{userId}/`
+**Database Location:** `%APPDATA%\Roaming\YouTube TV\youtube-tv.db`
+
+**Users Table:**
+```sql
+CREATE TABLE users (
+    user_id TEXT PRIMARY KEY,
+    custom_colors TEXT,        -- JSON object
+    color_order TEXT,          -- JSON array
+    playlist_tabs TEXT,       -- JSON array
+    video_progress TEXT,       -- JSON object
+    updated_at INTEGER
+);
+```
+
+**Playlists Table:**
+```sql
+CREATE TABLE playlists (
+    user_id TEXT NOT NULL,
+    playlist_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    videos TEXT NOT NULL,      -- JSON array of video IDs
+    groups TEXT,               -- JSON object (colored folders)
+    starred TEXT,              -- JSON array
+    category TEXT,
+    description TEXT,
+    thumbnail TEXT,
+    is_converted_from_colored_folder INTEGER DEFAULT 0,
+    representative_video_id TEXT,
+    is_default INTEGER DEFAULT 0,
+    updated_at INTEGER,
+    PRIMARY KEY (user_id, playlist_id)
+);
+```
+
+**Data Access:** Via Tauri commands (`get_user_data`, `save_user_data`, etc.)
+
+**See:** [TAURI-DEVELOPMENT-GUIDE.md#database-schema](./TAURI-DEVELOPMENT-GUIDE.md#database-schema) for complete schema
+
+### 2.2 Legacy Data Model (Firestore - Historical Reference)
+
+> **Note:** This section is for historical reference. Current app uses SQLite.
+
+**Main User Document:** `/users/{userId}/` (Firestore)
 - **Size Constraint:** 1MB (1,048,576 bytes) per document limit
 - **Current Optimization:** Stores only video IDs (as strings) in playlists array
-- **Structure:**
-  ```javascript
-  {
-    playlists: [
-      {
-        id: string,
-        name: string,
-        videos: [string], // Array of video IDs only (no titles/objects)
-        representativeVideoId: string (optional), // Video ID to use as playlist thumbnail
-        groups: {
-          red: { name: string, videos: [videoIds] },
-          green: { name: string, videos: [videoIds] },
-          pink: { name: string, videos: [videoIds] },
-          yellow: { name: string, videos: [videoIds] }
-        }
-      }
-    ],
-    playlistTabs: [
-      {
-        name: string,
-        playlistIds: [string],
-        coloredFolderPlaylists: [string] // Format: "playlistId_color"
-      }
-    ],
-    videoProgress: { [videoId]: timestamp } // Stored separately with debouncing
-  }
-  ```
+- **Structure:** (See legacy documentation for full structure)
 
-**Video Metadata Subcollection:** `/users/{userId}/videoMetadata/{videoId}`
-- **Purpose:** Store detailed video information separately to manage main document size
-- **Structure:**
-  ```javascript
-  {
-    duration: number,
-    publishedYear: string,
-    author: string,
-    viewCount: string,
-    channelId: string,
-    title: string // Added recently to cache titles and reduce API calls
-  }
-  ```
+**Video Metadata Subcollection:** `/users/{userId}/videoMetadata/{videoId}` (Firestore)
+- **Purpose:** Store detailed video information separately
+- **Note:** Migrated to local SQLite database
 
 ### 2.2 State Management
 

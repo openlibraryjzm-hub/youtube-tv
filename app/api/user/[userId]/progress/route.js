@@ -1,5 +1,9 @@
 import { getDatabase } from '../../../../../lib/db';
 
+// Force static export for this route
+export const dynamic = 'force-static';
+export const generateStaticParams = () => [{ userId: 'dummy' }];
+
 // PUT /api/user/[userId]/progress - Update video progress
 export async function PUT(request, { params }) {
   try {
@@ -43,6 +47,7 @@ export async function PUT(request, { params }) {
     return Response.json({ error: error.message }, { status: 500 });
   }
 }
+
 
 
 

@@ -1,230 +1,193 @@
 # Documentation Index
 
-**Welcome to the YouTube TV project documentation!**
-
-This directory contains comprehensive documentation for the YouTube TV project. All documentation is cross-referenced and designed to be AI-agent friendly.
-
-## 📚 Documentation Files
-
-### Essential Reading (Start Here)
-
-1. **[AI-ONBOARDING-PROMPT.md](./AI-ONBOARDING-PROMPT.md)** 🚀 **USE THIS PROMPT FOR NEW AI AGENTS**
-   - Perfect prompt for onboarding fresh AI agents
-   - Context-aware versions for specific tasks
-   - Documentation update reminders
-
-2. **[AI-QUICK-START.md](./AI-QUICK-START.md)** ⭐ **START HERE**
-   - Quick start guide for AI agents
-   - Reading order
-   - Key concepts
-   - Common tasks
-
-2. **[MASTER-CONTEXT.md](./MASTER-CONTEXT.md)**
-   - Comprehensive project overview
-   - Architecture and data structure
-   - Complete UI and navigation documentation
-   - Recent developments
-   - Current challenges
-
-### Reference Documentation
-
-3. **[CODE-STRUCTURE.md](./CODE-STRUCTURE.md)**
-   - Code organization and structure
-   - Function locations
-   - File structure
-   - Line number references
-
-4. **[STATE-MANAGEMENT.md](./STATE-MANAGEMENT.md)**
-   - Complete state variable reference
-   - Update patterns
-   - Dependencies
-   - Common bugs
-
-5. **[PATTERNS.md](./PATTERNS.md)**
-   - Recurring code patterns
-   - Code idioms
-   - Best practices
-   - Examples
-
-6. **[GOTCHAS.md](./GOTCHAS.md)**
-   - Common pitfalls
-   - Edge cases
-   - Solutions
-   - Prevention strategies
-
-7. **[DATA-FLOW.md](./DATA-FLOW.md)**
-   - Data flow diagrams
-   - Step-by-step flows
-   - Save/load cycles
-   - Sync mechanisms
-
-### Meta Documentation
-
-8. **[DOCUMENTATION-GUIDE.md](./DOCUMENTATION-GUIDE.md)**
-   - Guide to all documentation
-   - Documentation types
-   - Examples and templates
-
-9. **[DOCUMENTATION-MAINTENANCE.md](./DOCUMENTATION-MAINTENANCE.md)**
-   - Maintenance strategy
-   - Update triggers
-   - Update workflow
-   - Templates
-   - **📋 How to mark documentation as complete** (for human users)
-   - **🤖 How AI agents detect completion signals**
-
-10. **[DOCUMENTATION-GAPS.md](./DOCUMENTATION-GAPS.md)**
-    - Gap analysis
-    - Missing documentation
-    - Recommendations
-    - Handover readiness
-    - **📋 How to mark gaps as complete** (for human users)
-
-11. **[GIT-WORKFLOW.md](./GIT-WORKFLOW.md)** 🆕
-    - Beginner-friendly Git guide
-    - Session checkpoint system
-    - Version control strategy
-    - Quick reversal procedures
-    - Major/minor versioning
-
-12. **[GIT-COMMIT-PROTOCOL.md](./GIT-COMMIT-PROTOCOL.md)** 🆕 **MANDATORY FOR AI AGENTS**
-    - Automatic git commit system
-    - Prompt tracking in commits
-    - Complete audit trail
-    - Every code change committed with user prompt
-
-## 🚀 Quick Navigation
-
-### I Want to...
-
-**Understand the project:**
-→ Start with [AI-QUICK-START.md](./AI-QUICK-START.md), then [MASTER-CONTEXT.md](./MASTER-CONTEXT.md)
-
-**Find code:**
-→ [CODE-STRUCTURE.md](./CODE-STRUCTURE.md) - Find functions, state, UI sections
-
-**Understand state:**
-→ [STATE-MANAGEMENT.md](./STATE-MANAGEMENT.md) - All state variables and patterns
-
-**Follow patterns:**
-→ [PATTERNS.md](./PATTERNS.md) - Mandatory patterns to follow
-
-**Avoid bugs:**
-→ [GOTCHAS.md](./GOTCHAS.md) - Common pitfalls and solutions
-
-**Understand data flow:**
-→ [DATA-FLOW.md](./DATA-FLOW.md) - How data moves through the system
-
-**Update documentation:**
-→ [DOCUMENTATION-MAINTENANCE.md](./DOCUMENTATION-MAINTENANCE.md) - Maintenance strategy
-
-**See what's missing:**
-→ [DOCUMENTATION-GAPS.md](./DOCUMENTATION-GAPS.md) - Gap analysis
-
-## 📋 Documentation Status
-
-### ✅ Complete
-- Project overview and architecture
-- Code structure and organization
-- State management reference
-- Code patterns and idioms
-- Common pitfalls and gotchas
-- Data flow documentation
-- Maintenance strategy
-- AI quick start guide
-- Gap analysis
-
-### ⚠️ Recommended Addition
-- **Screenshots** - Visual UI reference (see DOCUMENTATION-GAPS.md)
-
-### 🟡 Optional Additions
-- API reference documentation
-- Firebase patterns documentation
-- Setup guide
-- Testing scenarios
-- User flows
-
-## 🔗 Cross-References
-
-All documentation files are cross-referenced:
-- Each file links to related documentation
-- Sections link to related patterns, gotchas, and flows
-- Code locations link to structure documentation
-- Problems link to solutions
-
-## 📝 Maintenance
-
-**Update Strategy:** See [DOCUMENTATION-MAINTENANCE.md](./DOCUMENTATION-MAINTENANCE.md)
-
-**Update Triggers:**
-- Code changes
-- Problem resolution
-- New features
-- New challenges
-
-**Update Checklist:** See DOCUMENTATION-MAINTENANCE.md for complete checklist
-
-## 🤖 AI Agent Notes
-
-All documentation includes:
-- **AI-friendly formatting** - Clear headers, code blocks, examples
-- **Cross-references** - Links between related topics
-- **Status indicators** - ✅ Resolved, ⚠️ Known Issue, 🚨 Critical
-- **Quick navigation** - Reading order and key concepts
-- **Context markers** - 🤖 AI Agent Note sections
-
-## 📊 Documentation Completeness
-
-**Current Status:** ✅ **Excellent** - Comprehensive and well-organized
-
-**Handover Readiness:** ✅ **Ready** (screenshots recommended)
-
-**Coverage:**
-- ✅ Architecture and design
-- ✅ Code structure
-- ✅ State management
-- ✅ Patterns and idioms
-- ✅ Common pitfalls
-- ✅ Data flows
-- ✅ UI and navigation
-- ⚠️ Visual reference (screenshots)
-
-## 🎯 For New Developers/AI Agents
-
-1. **Read [AI-QUICK-START.md](./AI-QUICK-START.md)** - Get oriented
-2. **Read [MASTER-CONTEXT.md](./MASTER-CONTEXT.md)** - Understand the project
-3. **Reference [CODE-STRUCTURE.md](./CODE-STRUCTURE.md)** - Find code
-4. **Follow [PATTERNS.md](./PATTERNS.md)** - Use correct patterns
-5. **Avoid [GOTCHAS.md](./GOTCHAS.md)** - Don't repeat mistakes
-6. **Understand [DATA-FLOW.md](./DATA-FLOW.md)** - Trace data flow
-
-## 📅 Last Updated
-
-**All Documentation:** 2025-01-06
-
-**Individual File Dates:** See each file's header
-
-## 🔄 Keeping Documentation Updated
-
-**AUTOMATED UPDATES:** Documentation updates are **automated** - AI agents should update docs after each code change automatically. See [DOCUMENTATION-MAINTENANCE.md#automated-update-strategy](./DOCUMENTATION-MAINTENANCE.md#automated-update-strategy).
-
-**Automated Update Process:**
-1. Make code change
-2. Identify affected documentation files
-3. Update each file using templates
-4. Add cross-references
-5. Update "Last Updated" dates
-6. Add to change log
-7. Commit with code changes
-
-**Manual Review:**
-- Weekly: Verify automated updates
-- Monthly: Comprehensive audit
-
-**Completion Signals:** When you complete documentation for a gap, mark it complete in DOCUMENTATION-GAPS.md (change status to "✅ Complete" and check all boxes). AI agents will automatically detect this and update AI-ONBOARDING-PROMPT.md. See [DOCUMENTATION-MAINTENANCE.md#human-completion-signals](./DOCUMENTATION-MAINTENANCE.md#human-completion-signals-how-to-mark-documentation-as-complete) for details.
-
-**See:** [DOCUMENTATION-MAINTENANCE.md](./DOCUMENTATION-MAINTENANCE.md) for complete strategy.
+**Last Updated:** 2025-01-09  
+**Purpose:** Navigation guide for all project documentation
 
 ---
 
-**Remember:** Good documentation is a living document. Keep it updated, and it will serve you well.
+## 🎯 For AI Agents (Start Here)
+
+### **AI-ONBOARDING-PROMPT.md** 🚀 **MASTER PROMPT - READ THIS FIRST**
+
+**This is the ONLY document you need to read!** It's completely self-contained with:
+- Complete project overview and architecture
+- Tools, dependencies, and setup
+- How everything works fundamentally
+- The breakthrough packaging solution
+- Build protocol and core criteria
+- Code structure and patterns
+- Critical gotchas and how to avoid them
+- Data flow and state management
+- Tauri development patterns
+- Quick reference
+
+**Everything is interconnected within this document.** You can find any information you need by reading it completely.
+
+**Optional Deep Dive:** [PROJECT-MASTER-DOCUMENTATION.md](./PROJECT-MASTER-DOCUMENTATION.md) - Comprehensive reference with detailed explanations (only if you need more detail)
+
+---
+
+## 📚 For Humans (Documentation Structure)
+
+### Essential Reading (Start Here)
+
+1. **[AI-ONBOARDING-PROMPT.md](./AI-ONBOARDING-PROMPT.md)** 🚀 **🎯 MASTER PROMPT - USE THIS FIRST**
+   - Ultimate prompt for onboarding any AI agent
+   - Complete project context
+   - Tools, dependencies, architecture
+   - User experience and breakthrough solutions
+   - Ready to code or provide advice
+   - **Self-contained - everything you need in one place**
+
+2. **[PROJECT-MASTER-DOCUMENTATION.md](./PROJECT-MASTER-DOCUMENTATION.md)** 🆕 **📚 DEFINITIVE REFERENCE**
+   - Truly comprehensive documentation
+   - Everything about the project in one place
+   - Tools, dependencies, code structure
+   - How everything works fundamentally
+   - User experience details
+   - The breakthrough packaging solution
+   - Complete build protocol
+   - **Optional deep dive for detailed explanations**
+
+### Migration & Development
+
+3. **[TAURI-MIGRATION-COMPLETE-CONTEXT.md](./TAURI-MIGRATION-COMPLETE-CONTEXT.md)** 🆕 **MIGRATION JOURNEY**
+   - Complete Tauri migration journey
+   - Working build protocol and core criteria
+   - Victory details and final solutions
+   - All issues encountered and resolved
+   - Production-ready status
+
+4. **[TAURI-MIGRATION-COMPLETE-CONTEXT.md](./TAURI-MIGRATION-COMPLETE-CONTEXT.md)** 🆕 **MIGRATION JOURNEY**
+   - Complete Tauri migration journey
+   - Working build protocol and core criteria
+   - Victory details and final solutions
+   - All issues encountered and resolved
+   - Production-ready status
+   - **Optional deep dive for migration history**
+
+### Reference Documentation (Consolidated & Deleted)
+
+**Note:** The following documents have been consolidated into [AI-ONBOARDING-PROMPT.md](./AI-ONBOARDING-PROMPT.md) and deleted:
+
+- ~~CODE-STRUCTURE.md~~ - Deleted (patterns now in master prompt)
+- ~~PATTERNS.md~~ - Deleted (all patterns in master prompt)
+- ~~GOTCHAS.md~~ - Deleted (all gotchas in master prompt)
+- ~~DATA-FLOW.md~~ - Deleted (overview in master prompt)
+- ~~STATE-MANAGEMENT.md~~ - Deleted (overview in master prompt)
+- ~~AI-QUICK-START.md~~ - Deleted (superseded by master prompt)
+
+**All essential content is now in [AI-ONBOARDING-PROMPT.md](./AI-ONBOARDING-PROMPT.md).**
+
+### Legacy Documentation
+
+- **[MASTER-CONTEXT.md](./MASTER-CONTEXT.md)** - Legacy Firestore context (see Tauri docs for current)
+
+### Maintenance & Workflow
+
+- **[DOCUMENTATION-MAINTENANCE.md](./DOCUMENTATION-MAINTENANCE.md)** - Documentation update strategy (updated for consolidated docs)
+- **[GIT-COMMIT-PROTOCOL.md](./GIT-COMMIT-PROTOCOL.md)** - MANDATORY: Commit with user prompt
+- **[GIT-WORKFLOW.md](./GIT-WORKFLOW.md)** - Version control workflow and session checkpoints
+
+**Note:** Git workflow info is also summarized in [AI-ONBOARDING-PROMPT.md#git-workflow](./AI-ONBOARDING-PROMPT.md#-git-workflow).
+
+---
+
+## 📋 Quick Navigation
+
+### I Want to...
+
+**Get complete context (NEW AI AGENT):**
+→ Start with [AI-ONBOARDING-PROMPT.md](./AI-ONBOARDING-PROMPT.md) - **Everything in one place!**
+
+**Understand the Tauri app:**
+→ Start with [AI-ONBOARDING-PROMPT.md](./AI-ONBOARDING-PROMPT.md), then [PROJECT-MASTER-DOCUMENTATION.md](./PROJECT-MASTER-DOCUMENTATION.md) for deep dives
+
+**Build the app:**
+→ See [AI-ONBOARDING-PROMPT.md#build-protocol--core-criteria](./AI-ONBOARDING-PROMPT.md#-build-protocol--core-criteria)
+
+**Understand code patterns:**
+→ See [AI-ONBOARDING-PROMPT.md#mandatory-code-patterns](./AI-ONBOARDING-PROMPT.md#-mandatory-code-patterns)
+
+**Avoid common mistakes:**
+→ See [AI-ONBOARDING-PROMPT.md#critical-gotchas](./AI-ONBOARDING-PROMPT.md#-critical-gotchas)
+
+**Add a new feature:**
+→ See [AI-ONBOARDING-PROMPT.md#when-making-changes](./AI-ONBOARDING-PROMPT.md#-when-making-changes)
+
+**Fix a bug:**
+→ See [AI-ONBOARDING-PROMPT.md#critical-gotchas](./AI-ONBOARDING-PROMPT.md#-critical-gotchas)
+
+**Understand the breakthrough:**
+→ See [AI-ONBOARDING-PROMPT.md#the-breakthrough-packaging-solution](./AI-ONBOARDING-PROMPT.md#-the-breakthrough-packaging-solution)
+
+**Use scripts:**
+→ See [AI-ONBOARDING-PROMPT.md#scripts--automation](./AI-ONBOARDING-PROMPT.md#-scripts--automation) - All scripts documented
+
+---
+
+## 📊 Documentation Status
+
+### ✅ Complete
+- **🎯 Master Onboarding Prompt** - Ultimate prompt for AI agents (self-contained)
+- **📚 Master Documentation** - Truly comprehensive project documentation
+- **Tauri migration documentation** - Complete context and development guide
+- **Working build protocol** - Documented with core criteria
+- **User experience documentation** - Complete user journey
+- **Breakthrough solutions** - The `_up_/` directory discovery
+- **Code patterns and gotchas** - Consolidated into master prompt
+- **Data flow and state management** - Overview in master prompt
+
+### ✅ Consolidated & Deleted
+The following documents have been consolidated into [AI-ONBOARDING-PROMPT.md](./AI-ONBOARDING-PROMPT.md) and **deleted**:
+- ✅ CODE-STRUCTURE.md (patterns included, file deleted)
+- ✅ PATTERNS.md (all patterns included, file deleted)
+- ✅ GOTCHAS.md (all gotchas included, file deleted)
+- ✅ DATA-FLOW.md (overview included, file deleted)
+- ✅ STATE-MANAGEMENT.md (overview included, file deleted)
+- ✅ AI-QUICK-START.md (superseded, file deleted)
+
+**All essential content is now in [AI-ONBOARDING-PROMPT.md](./AI-ONBOARDING-PROMPT.md).**
+
+---
+
+## 🎯 Documentation Philosophy
+
+**Minimal Documentation Approach:**
+- **One master document** ([AI-ONBOARDING-PROMPT.md](./AI-ONBOARDING-PROMPT.md)) contains everything essential
+- **Self-contained** - No need to read multiple documents
+- **Well-interconnected** - All information cross-referenced within the document
+- **Optional deep dives** - [PROJECT-MASTER-DOCUMENTATION.md](./PROJECT-MASTER-DOCUMENTATION.md) for detailed explanations
+
+**Benefits:**
+- Faster onboarding (one document to read)
+- Less maintenance (update one place)
+- Clearer structure (everything in logical order)
+- Still comprehensive (nothing important is missing)
+
+---
+
+## 🔗 Cross-References
+
+All documentation is cross-referenced:
+- **Within AI-ONBOARDING-PROMPT.md:** Sections link to each other
+- **To PROJECT-MASTER-DOCUMENTATION.md:** For deep dives
+- **To other docs:** For specific references when needed
+
+**Use the links to navigate between related topics.**
+
+---
+
+## 📝 Maintenance
+
+**After each code change:**
+- Update [AI-ONBOARDING-PROMPT.md](./AI-ONBOARDING-PROMPT.md) if patterns/gotchas change
+- Update [PROJECT-MASTER-DOCUMENTATION.md](./PROJECT-MASTER-DOCUMENTATION.md) for detailed changes
+- Update "Last Updated" dates
+- Add cross-references if needed
+
+**See:** [DOCUMENTATION-MAINTENANCE.md](./DOCUMENTATION-MAINTENANCE.md) for complete strategy
+
+---
+
+**Remember:** For AI agents, [AI-ONBOARDING-PROMPT.md](./AI-ONBOARDING-PROMPT.md) is the ONLY document you need to read. It's completely self-contained and well-interconnected.

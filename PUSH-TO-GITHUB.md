@@ -1,5 +1,7 @@
 # Push to GitHub - Manual Commands
 
+**⚠️ Note:** This is a reference for manual Git operations. For automated commits with prompt tracking (when user requests), see [GIT-COMMIT-PROTOCOL.md](./GIT-COMMIT-PROTOCOL.md).
+
 Run these commands in your PowerShell terminal, one at a time:
 
 ## Step 1: Navigate to project directory

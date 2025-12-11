@@ -16,12 +16,12 @@ This document outlines how to keep documentation synchronized with code changes,
 ### When to Update Documentation
 
 #### Code Changes
-- ✅ **New functions added** → Update CODE-STRUCTURE.md
-- ✅ **New state variables** → Update STATE-MANAGEMENT.md
-- ✅ **New patterns introduced** → Update PATTERNS.md
-- ✅ **Data flow changes** → Update DATA-FLOW.md
-- ✅ **New gotchas discovered** → Update GOTCHAS.md
-- ✅ **Architecture changes** → Update MASTER-CONTEXT.md
+- ✅ **New functions added** → Update AI-ONBOARDING-PROMPT.md (code structure section)
+- ✅ **New state variables** → Update AI-ONBOARDING-PROMPT.md (patterns section)
+- ✅ **New patterns introduced** → Update AI-ONBOARDING-PROMPT.md (patterns section)
+- ✅ **Data flow changes** → Update AI-ONBOARDING-PROMPT.md (how everything works section)
+- ✅ **New gotchas discovered** → Update AI-ONBOARDING-PROMPT.md (gotchas section)
+- ✅ **Architecture changes** → Update AI-ONBOARDING-PROMPT.md and PROJECT-MASTER-DOCUMENTATION.md
 
 #### Problem Resolution
 - ✅ **Bug fixed** → Update GOTCHAS.md (mark as resolved, add solution)
@@ -45,30 +45,30 @@ This document outlines how to keep documentation synchronized with code changes,
 When making code changes, check:
 
 ### Code Changes
-- [ ] Are new functions documented in CODE-STRUCTURE.md?
-- [ ] Are new state variables documented in STATE-MANAGEMENT.md?
-- [ ] Do new patterns need to be added to PATTERNS.md?
-- [ ] Does data flow change? Update DATA-FLOW.md
-- [ ] Are there new gotchas? Update GOTCHAS.md
+- [ ] Are new functions documented in AI-ONBOARDING-PROMPT.md (code structure section)?
+- [ ] Are new state variables documented in AI-ONBOARDING-PROMPT.md (patterns section)?
+- [ ] Do new patterns need to be added to AI-ONBOARDING-PROMPT.md (patterns section)?
+- [ ] Does data flow change? Update AI-ONBOARDING-PROMPT.md (how everything works section)
+- [ ] Are there new gotchas? Update AI-ONBOARDING-PROMPT.md (gotchas section)
 
 ### Problem Resolution
-- [ ] Is the problem documented in GOTCHAS.md?
-- [ ] Is the solution documented in PATTERNS.md or GOTCHAS.md?
-- [ ] Is the fix mentioned in MASTER-CONTEXT.md recent developments?
+- [ ] Is the problem documented in AI-ONBOARDING-PROMPT.md (gotchas section)?
+- [ ] Is the solution documented in AI-ONBOARDING-PROMPT.md (patterns or gotchas section)?
+- [ ] Is the fix mentioned in PROJECT-MASTER-DOCUMENTATION.md recent developments?
 - [ ] Are cross-references updated?
 
 ### New Features
-- [ ] Is the feature described in MASTER-CONTEXT.md?
-- [ ] Are UI changes documented in MASTER-CONTEXT.md UI section?
-- [ ] Is the data flow documented in DATA-FLOW.md?
-- [ ] Are new state variables in STATE-MANAGEMENT.md?
+- [ ] Is the feature described in AI-ONBOARDING-PROMPT.md (project overview)?
+- [ ] Are UI changes documented in AI-ONBOARDING-PROMPT.md (user experience section)?
+- [ ] Is the data flow documented in AI-ONBOARDING-PROMPT.md (how everything works section)?
+- [ ] Are new state variables in AI-ONBOARDING-PROMPT.md (patterns section)?
 
 ## Update Workflow
 
 ### Step 1: Make Code Changes
 - Write code
 - Test functionality
-- **MANDATORY: Commit and push with prompt** (see GIT-COMMIT-PROTOCOL.md)
+- **Commit with prompt (if user requests)** (see GIT-COMMIT-PROTOCOL.md)
 
 ### Step 2: Identify Documentation Impact
 - Review checklist above
@@ -86,33 +86,29 @@ When making code changes, check:
 - Update existing cross-references if structure changed
 - Ensure links still work
 
-### Step 5: Commit Documentation
-- **MANDATORY: Commit with user prompt** (see GIT-COMMIT-PROTOCOL.md)
+### Step 5: Commit Documentation (If User Requests)
+- **Commit with user prompt (if user requests)** (see GIT-COMMIT-PROTOCOL.md)
 - Commit documentation with code (or in same PR)
 - Use format: `[AI] User Request: "[prompt]"` with changes listed
-- Push to GitHub immediately
+- Push to GitHub (if user requested push)
 
 ## Documentation Update Templates
 
 ### Adding a New Function
 
-**CODE-STRUCTURE.md:**
+**AI-ONBOARDING-PROMPT.md (Code Structure section):**
 ```markdown
-#### New Function Category
-- **functionName():** Brief description
+**Key Functions:**
+- `functionName()` - Brief description
   - Purpose: What it does
   - Parameters: What it takes
   - Returns: What it returns
   - Used By: Where it's called
-  - Related: [PATTERNS.md#pattern-name](./PATTERNS.md#pattern-name)
 ```
 
-**PATTERNS.md (if new pattern):**
+**AI-ONBOARDING-PROMPT.md (Patterns section, if new pattern):**
 ```markdown
-## X. New Pattern Name
-
-> **Related:** [CODE-STRUCTURE.md#function-name](./CODE-STRUCTURE.md#function-name) - Implementation
-> **Related:** [DATA-FLOW.md#flow-name](./DATA-FLOW.md#flow-name) - How it fits
+### X. New Pattern Name
 
 **Purpose:** What problem this solves
 
@@ -128,12 +124,9 @@ When making code changes, check:
 
 ### Fixing a Bug
 
-**GOTCHAS.md:**
+**AI-ONBOARDING-PROMPT.md (Gotchas section):**
 ```markdown
 ### X. Bug Name (RESOLVED)
-
-> **Status:** ✅ Resolved in [commit/PR]
-> **Related:** [PATTERNS.md#fix-pattern](./PATTERNS.md#fix-pattern) - Solution pattern
 
 **Problem:** Description
 
@@ -147,7 +140,7 @@ When making code changes, check:
 - Lines: ~XXXX-YYYY
 ```
 
-**MASTER-CONTEXT.md (Recent Developments):**
+**PROJECT-MASTER-DOCUMENTATION.md (Recent Developments):**
 ```markdown
 ### X.X Bug Fix (Date)
 
@@ -159,20 +152,18 @@ When making code changes, check:
 
 ### Adding New State
 
-**STATE-MANAGEMENT.md:**
+**AI-ONBOARDING-PROMPT.md (Patterns section):**
 ```markdown
-#### `newStateVariable` (type)
-- **Purpose:** What it's for
-- **Initial:** Default value
-- **Updates:** How it's updated
-- **Used By:** Where it's used
-- **Notes:** Any special considerations
-- **Related:** [PATTERNS.md#pattern](./PATTERNS.md#pattern) - Related pattern
+**State Variables:**
+- `newStateVariable` (type) - What it's for
+  - Initial: Default value
+  - Updates: How it's updated
+  - Used By: Where it's used
 ```
 
-**CODE-STRUCTURE.md:**
+**AI-ONBOARDING-PROMPT.md (Code Structure section):**
 ```markdown
-#### useState Hooks (Lines XXX-YYY)
+**State Declarations:**
 - `newStateVariable`: Brief description
 ```
 
@@ -283,93 +274,90 @@ For now, use this checklist manually:
 ## Quick Update Guide
 
 ### I Added a New Feature
-1. Update MASTER-CONTEXT.md (features section)
-2. Update CODE-STRUCTURE.md (function location)
-3. Update STATE-MANAGEMENT.md (if new state)
-4. Update DATA-FLOW.md (if flow changes)
-5. Add cross-references
-6. **⚠️ Update AI-ONBOARDING-PROMPT.md** (if feature significantly changes project status or adds new documentation)
+1. Update AI-ONBOARDING-PROMPT.md (project overview and code structure sections)
+2. Update AI-ONBOARDING-PROMPT.md (patterns section if new state/pattern)
+3. Update AI-ONBOARDING-PROMPT.md (how everything works section if flow changes)
+4. Update PROJECT-MASTER-DOCUMENTATION.md (detailed feature description)
+5. Add cross-references within AI-ONBOARDING-PROMPT.md
+6. **⚠️ Update AI-ONBOARDING-PROMPT.md** (if feature significantly changes project status)
 
 ### I Fixed a Bug
-1. Update GOTCHAS.md (mark as resolved)
-2. Update PATTERNS.md (if new pattern)
-3. Update MASTER-CONTEXT.md (recent developments)
-4. Update cross-references
+1. Update AI-ONBOARDING-PROMPT.md (gotchas section - mark as resolved or add new gotcha)
+2. Update AI-ONBOARDING-PROMPT.md (patterns section if new pattern created)
+3. Update PROJECT-MASTER-DOCUMENTATION.md (recent developments)
+4. Add cross-references within AI-ONBOARDING-PROMPT.md
 
 ### I Discovered a New Gotcha
-1. Add to GOTCHAS.md
-2. Link to related patterns
+1. Add to AI-ONBOARDING-PROMPT.md (gotchas section)
+2. Link to related patterns within the document
 3. Add prevention checklist item
-4. Update relevant patterns if needed
+4. Update relevant patterns in AI-ONBOARDING-PROMPT.md if needed
 5. **⚠️ Update AI-ONBOARDING-PROMPT.md** (if gotcha is critical and changes "Critical Rules")
 
 ### I Changed Data Flow
-1. Update DATA-FLOW.md (affected flows)
-2. Update CODE-STRUCTURE.md (function changes)
-3. Update PATTERNS.md (if pattern changes)
-4. Update cross-references
+1. Update AI-ONBOARDING-PROMPT.md (how everything works section)
+2. Update AI-ONBOARDING-PROMPT.md (code structure section if functions change)
+3. Update AI-ONBOARDING-PROMPT.md (patterns section if pattern changes)
+4. Add cross-references within AI-ONBOARDING-PROMPT.md
 
 ## Automated Update Strategy
 
 ### AI Agent Auto-Update Protocol
 
-**Goal:** AI agents should automatically update documentation after each code change, rather than requiring manual review.
+**Goal:** AI agents should update documentation after each code change to keep it synchronized.
 
-#### Update Triggers (Automatic)
+#### Update Triggers
 
 When an AI agent makes code changes, it should:
 
 1. **After Code Changes:**
    - ✅ Identify which documentation files are affected
-   - ✅ Update relevant sections automatically
+   - ✅ Update relevant sections
    - ✅ Add cross-references if new sections created
    - ✅ Update "Last Updated" date
    - ✅ Add entry to change log
 
 2. **After Bug Fixes:**
-   - ✅ Update GOTCHAS.md (mark as resolved or add new gotcha)
-   - ✅ Update MASTER-CONTEXT.md recent developments
-   - ✅ Update PATTERNS.md if new pattern created
-   - ✅ Add cross-references
+   - ✅ Update AI-ONBOARDING-PROMPT.md (gotchas section - mark as resolved or add new gotcha)
+   - ✅ Update PROJECT-MASTER-DOCUMENTATION.md (recent developments)
+   - ✅ Update AI-ONBOARDING-PROMPT.md (patterns section if new pattern created)
+   - ✅ Add cross-references within AI-ONBOARDING-PROMPT.md
 
 3. **After New Features:**
-   - ✅ Update MASTER-CONTEXT.md features section
-   - ✅ Update CODE-STRUCTURE.md function list
-   - ✅ Update STATE-MANAGEMENT.md if new state
-   - ✅ Update DATA-FLOW.md if flow changes
-   - ✅ Add to PATTERNS.md if new pattern
+   - ✅ Update AI-ONBOARDING-PROMPT.md (project overview and code structure sections)
+   - ✅ Update AI-ONBOARDING-PROMPT.md (patterns section if new state)
+   - ✅ Update AI-ONBOARDING-PROMPT.md (how everything works section if flow changes)
+   - ✅ Add to AI-ONBOARDING-PROMPT.md (patterns section if new pattern)
 
 4. **After Problem Resolution:**
-   - ✅ Move from "Current Challenges" to "Recent Developments"
-   - ✅ Document solution
-   - ✅ Update related patterns/gotchas
-   - ✅ Add cross-references
+   - ✅ Document solution in AI-ONBOARDING-PROMPT.md (gotchas section)
+   - ✅ Update PROJECT-MASTER-DOCUMENTATION.md (recent developments)
+   - ✅ Update related patterns/gotchas in AI-ONBOARDING-PROMPT.md
+   - ✅ Add cross-references within AI-ONBOARDING-PROMPT.md
 
 #### Automated Update Checklist (For AI Agents)
 
 **After ANY code change, check:**
 
-- [ ] **MANDATORY: Commit and push with prompt** → See GIT-COMMIT-PROTOCOL.md
-- [ ] Does this add/modify functions? → Update CODE-STRUCTURE.md
-- [ ] Does this add/modify state? → Update STATE-MANAGEMENT.md
-- [ ] Does this create new pattern? → Update PATTERNS.md
-- [ ] Does this fix a gotcha? → Update GOTCHAS.md
-- [ ] Does this change data flow? → Update DATA-FLOW.md
-- [ ] Does this add/modify features? → Update MASTER-CONTEXT.md
-- [ ] Are cross-references needed? → Add links
+- [ ] **Commit with prompt (if user requests)** → See AI-ONBOARDING-PROMPT.md (git workflow section)
+- [ ] Does this add/modify functions? → Update AI-ONBOARDING-PROMPT.md (code structure section)
+- [ ] Does this add/modify state? → Update AI-ONBOARDING-PROMPT.md (patterns section)
+- [ ] Does this create new pattern? → Update AI-ONBOARDING-PROMPT.md (patterns section)
+- [ ] Does this fix a gotcha? → Update AI-ONBOARDING-PROMPT.md (gotchas section)
+- [ ] Does this change data flow? → Update AI-ONBOARDING-PROMPT.md (how everything works section)
+- [ ] Does this add/modify features? → Update AI-ONBOARDING-PROMPT.md (project overview) and PROJECT-MASTER-DOCUMENTATION.md
+- [ ] Are cross-references needed? → Add links within AI-ONBOARDING-PROMPT.md
 - [ ] Update "Last Updated" date? → Update header
 - [ ] Add to change log? → Add entry
 - [ ] **⚠️ Does this create new documentation file? → Update AI-ONBOARDING-PROMPT.md (see Prompt Update Rules below)**
 
 **📋 Check for Completion Signals (Periodically):**
 
-- [ ] Check DOCUMENTATION-GAPS.md for status changes (`Missing` → `✅ Complete`)
-- [ ] Check for completed checkboxes in action items
 - [ ] Check new documentation files for "Ready for Prompt Update: Yes"
 - [ ] Check DOCUMENTATION-STATUS.md if it exists
 - [ ] If completion detected, verify documentation exists and is comprehensive
 - [ ] Update AI-ONBOARDING-PROMPT.md if documentation is complete
-- [ ] Update cross-references in other docs
+- [ ] Update cross-references within AI-ONBOARDING-PROMPT.md
 
 #### Update Automation Rules
 
@@ -399,18 +387,13 @@ When an AI agent makes code changes, it should:
 
 **Automatic Updates:**
 
-1. **CODE-STRUCTURE.md:**
+1. **AI-ONBOARDING-PROMPT.md (Code Structure section):**
    ```markdown
-   #### New Feature Functions
-   - **handleNewFeature():** Brief description
-     - Purpose: What it does
-     - Parameters: What it takes
-     - Returns: What it returns
-     - Used By: Where it's called
-     - Related: [PATTERNS.md#pattern-name](./PATTERNS.md#pattern-name)
+   **Key Functions:**
+   - `handleNewFeature()` - Brief description
    ```
 
-2. **MASTER-CONTEXT.md (if significant feature):**
+2. **PROJECT-MASTER-DOCUMENTATION.md (if significant feature):**
    ```markdown
    ### X.X New Feature (2025-01-06)
    - Added handleNewFeature() function
@@ -422,7 +405,7 @@ When an AI agent makes code changes, it should:
    ```markdown
    ### 2025-01-06
    - Added handleNewFeature() function
-   - Updated CODE-STRUCTURE.md
+   - Updated AI-ONBOARDING-PROMPT.md
    ```
 
 #### Automated Update Workflow
@@ -498,7 +481,7 @@ grep -r "\[.*\](" *.md
 ## Best Practices
 
 1. **Update as you go** - Don't let docs get stale
-2. **Automate updates** - AI agents should update docs automatically after each change
+2. **Update docs** - AI agents should update docs after each change (when making code changes)
 3. **Link everything** - Cross-references help AI understand
 4. **Be specific** - Include line numbers, function names, examples
 5. **Show, don't tell** - Use code examples
@@ -507,7 +490,7 @@ grep -r "\[.*\](" *.md
 
 ## Automated vs Manual Updates
 
-### Automated Updates (AI Agents)
+### Documentation Updates (AI Agents)
 - **When:** After each code change
 - **Who:** AI agent making the change
 - **What:** Update affected documentation files
@@ -576,11 +559,11 @@ When new documentation is added:
 **After Screenshots Added:**
 1. Create SCREENSHOTS/ directory with screenshots
 2. Create SCREENSHOTS/README.md
-3. Update MASTER-CONTEXT.md with screenshot links
+3. Update PROJECT-MASTER-DOCUMENTATION.md with screenshot links
 4. ✅ **NOW update AI-ONBOARDING-PROMPT.md:**
-   - Add: "Screenshots available in SCREENSHOTS/ directory - see MASTER-CONTEXT.md Section 3"
+   - Add: "Screenshots available in SCREENSHOTS/ directory - see PROJECT-MASTER-DOCUMENTATION.md"
    - Update "Project Status" if screenshots complete major gap
-   - Add screenshot reference in UI understanding section
+   - Add screenshot reference in user experience section
 
 ### Prompt Update Template
 
@@ -589,9 +572,8 @@ When adding new documentation to prompt:
 ```markdown
 **CRITICAL: Read all attached documentation files in this order:**
 
-1. README-DOCUMENTATION.md
-2. AI-QUICK-START.md
-3. MASTER-CONTEXT.md
+1. AI-ONBOARDING-PROMPT.md - Master prompt (self-contained, everything essential)
+2. PROJECT-MASTER-DOCUMENTATION.md - Optional deep dive (only if needed)
 ...
 X. NEW-DOCUMENTATION.md - [Description] (ONLY if comprehensive and complete)
 ```

@@ -1,0 +1,79 @@
+You are working on the YouTube TV desktop application. This is a Tauri v2 app (Rust backend + Next.js static export frontend) that is PRODUCTION READY and FULLY FUNCTIONAL.
+
+CRITICAL: Read these documents in this exact order:
+
+1. AI-ONBOARDING-PROMPT.md - Read this COMPLETELY first. It contains:
+   - Complete project overview and architecture
+   - Tools, dependencies, and setup
+   - How everything works fundamentally
+   - The breakthrough packaging solution (_up_/ directory)
+   - Build protocol and core criteria
+   - Code structure and patterns
+   - Critical gotchas and how to avoid them
+   - Data flow and state management
+   - Tauri development patterns
+   - Documentation maintenance protocol
+
+2. PROJECT-MASTER-DOCUMENTATION.md - Optional deep dive for detailed explanations (only if you need more detail)
+
+KEY PRINCIPLES:
+- This is a Tauri app, NOT Electron (we migrated from Electron)
+- Uses SQLite (rusqlite) for local database, NOT Firestore
+- Next.js static export (no server), NOT standalone build
+- Resources are in _up_/ directory for NSIS installers (critical discovery)
+- All saves are debounced (2 seconds)
+- Session-specific data uses useRef (not persisted)
+
+WHEN MAKING CHANGES:
+1. Follow existing patterns exactly
+2. Use Tauri commands for all data operations
+3. Debounce all saves (2 seconds)
+4. ⚠️ MANDATORY: Update documentation immediately after each code change (see Documentation Maintenance Protocol below)
+5. Only commit to Git when user explicitly requests it
+
+DOCUMENTATION MAINTENANCE (MANDATORY - DO AS YOU GO):
+- After each code change: Update affected sections in AI-ONBOARDING-PROMPT.md immediately
+  * New functions → Update "Code Structure" section
+  * New state/patterns → Update "Mandatory Code Patterns" section
+  * New gotchas → Update "Critical Gotchas" section
+  * Architecture changes → Update "How Everything Works" section
+  * Update "Last Updated" date at top of AI-ONBOARDING-PROMPT.md
+- When challenges arise: Document the problem in "Critical Gotchas" section immediately
+- When challenges are solved: Mark as resolved, document solution, update "Recent Developments", update "Last Updated" date
+- Key principle: Documentation should reflect current state. Update as you go, not later.
+
+GIT WORKFLOW (ONLY WHEN USER REQUESTS):
+- ⚠️ IMPORTANT: Only commit when user explicitly requests it. Never automatically commit or push.
+- When user requests commit/push, use this EXACT format:
+
+[AI] User Request: "[exact user prompt]"
+
+Changes:
+- [List of specific changes made]
+- [Files modified]
+- [Functions added/modified]
+
+Example:
+[AI] User Request: "add bulk delete feature for playlists"
+
+Changes:
+- Added bulkDeleteMode state variable
+- Implemented handleBulkDeletePlaylists() function
+- Added bulk delete UI in playlists screen
+- Updated AI-ONBOARDING-PROMPT.md (patterns section)
+
+Files Modified:
+- app/page.jsx (lines 297-417: state, 214-219: functions, 4263-5166: UI)
+- AI-ONBOARDING-PROMPT.md
+
+Commands:
+1. git add .
+2. git commit -m "[AI] User Request: \"[exact prompt]\"\n\nChanges:\n- [list changes]"
+3. git push origin main (if user requested push)
+
+GitHub Repository:
+- Remote URL: https://github.com/openlibraryjzm-hub/youtube-tv.git
+- View commits: https://github.com/openlibraryjzm-hub/youtube-tv/commits/main
+- If remote not set: git remote add origin https://github.com/openlibraryjzm-hub/youtube-tv.git
+
+The app is production-ready. All critical issues have been resolved. You can confidently make changes, add features, or provide advice based on the comprehensive context in AI-ONBOARDING-PROMPT.md.
