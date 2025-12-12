@@ -10,7 +10,9 @@
 - Fixed thumbnail loading: Switched to blob URLs for reliable local file thumbnails
 - Improved local video playback: Always start at 0:00, smooth autoplay, fixed glitches
 - Implemented lazy loading: Prevents crashes with large playlists (6GB+)
-- Added MKV support: File dialog filters and playback support
+- Fixed MKV support: Added MKV to main "Video Files" filter with case-insensitive support (mkv, MKV)
+  - Updated both file dialog locations ("Add videos" and "Add local folder")
+  - MKV files now visible in file picker and can be uploaded successfully
 
 ---
 

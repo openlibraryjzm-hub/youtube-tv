@@ -79,6 +79,19 @@ Major improvements to thumbnail system, local video playback, and large playlist
 - **Playback support:** MKV files can be added and played
 - **MIME type handling:** Proper MIME type detection for MKV files
 
+### Fix Applied (2025-01-10)
+**Problem:** MKV files were not visible in file picker despite being in filters.
+
+**Solution:**
+- Added MKV to main "Video Files" filter (not just separate filter)
+- Updated both file dialog locations:
+  - "Add videos to playlist" dialog
+  - "Add local folder" → individual files option
+- Added case-insensitive support: Both `mkv` and `MKV` extensions
+- Kept separate "MKV Files" filter for explicit selection
+
+**Result:** ✅ MKV files now appear in file picker and can be uploaded successfully.
+
 ### Limitations
 - MKV thumbnails may not extract (playback still works)
 - This is acceptable per user requirements

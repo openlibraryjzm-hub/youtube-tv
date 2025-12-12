@@ -512,6 +512,7 @@ pub fn get_user_data(user_id: String) -> Result<UserData, String> {
 3. **Supported Formats:**
    - MP4, WebM, AVI, MOV, WMV, FLV, M4V: Full thumbnail support
    - MKV: Playback supported, thumbnails may not extract
+   - **MKV File Dialog Fix:** Added MKV to main "Video Files" filter with case-insensitive support (mkv, MKV) in both file dialog locations
 
 ### Lazy Loading System
 
@@ -1191,6 +1192,9 @@ src-tauri\target\release\app.exe
    - **Import:** Users can import JSON playlist files
      - Smart import auto-detects playlist vs tab files
      - File picker via Tauri dialog
+     - **Supported formats:** MP4, WebM, MKV, AVI, MOV, WMV, FLV, M4V
+     - **MKV Support:** Added to main "Video Files" filter with case-insensitive support (mkv, MKV)
+     - **File dialogs:** Both "Add videos to playlist" and "Add local folder" dialogs support MKV
      - Merge with existing playlists (skips duplicates)
      - Validate structure before import
    - **Export:** Export playlists to JSON

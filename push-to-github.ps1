@@ -14,14 +14,14 @@ git add .
 # AI analyzes all changes since last push and updates this message
 $tempFile = "commit-msg-temp.txt"
 $commitMessage = @"
-[AI] Major Updates: Thumbnail System, Local Video Playback, Lazy Loading, MKV Support
+[AI] Major Updates: Thumbnail System, Local Video Playback, Lazy Loading, MKV Support (Fixed)
 
 Recent Changes:
 - Fixed thumbnail loading: Switched from data URLs to blob URLs for reliable local file thumbnails
 - Fixed playlist cover thumbnails: Now use async ThumbnailImage component for all playlist covers
 - Improved local video playback: Always start at 0:00, smooth autoplay to next video, fixed pause/unpause glitches
 - Implemented lazy loading: Video files only loaded when selected to play (prevents 6GB+ memory crashes)
-- Added MKV file support: Separate filter in file dialog, playback support (thumbnails may not extract)
+- Fixed MKV file support: Added MKV to main Video Files filter with case-insensitive support (mkv, MKV)
 - Fixed video seeking: Removed aggressive currentTime resets that prevented scrubbing
 - Fixed first pause reset bug: Removed thumbnail extraction reset that caused video to jump to 0:00
 - Added asset protocol configuration: Configured Tauri asset protocol scope for thumbnail access
@@ -31,21 +31,27 @@ Technical Improvements:
 - Thumbnails now use Tauri fs plugin to read files and create blob URLs (same pattern as videos)
 - Local videos simplified: No progress saving, always start fresh at 0:00, smooth transitions
 - Lazy loading prevents memory issues with large playlists (6GB+ folders now work)
-- File dialog filters: Added separate MKV filter and "All Files" option for better file selection
+- MKV file dialog fix: Added MKV to main Video Files filter in both file dialog locations
+  - Updated "Add videos to playlist" dialog
+  - Updated "Add local folder" dialog (individual files option)
+  - Added case-insensitive support (both 'mkv' and 'MKV' extensions)
+  - Kept separate MKV Files filter for explicit selection
 
 Files Modified:
-- app/page.jsx: Thumbnail system, local video playback, lazy loading, MKV support
+- app/page.jsx: Thumbnail system, local video playback, lazy loading, MKV file dialog filters
 - src-tauri/tauri.conf.json: Added asset protocol configuration, blob: support in CSP
 - push-to-github.ps1: Updated commit message
+- RECENT-UPDATES-2025-01-10.md: Added MKV fix documentation
 
 Key Features:
 ✅ Thumbnails work reliably for local files (blob URLs)
 ✅ Playlist covers show thumbnails correctly
 ✅ Local videos play smoothly without glitches
 ✅ Large playlists (6GB+) work without crashing
-✅ MKV files can be added and played
+✅ MKV files can be added and played (file dialog now shows them)
 ✅ Video seeking/scrubbing works properly
 ✅ No pause/unpause glitches
+✅ MKV upload working - files visible in file picker
 "@
 
 # Write to temp file

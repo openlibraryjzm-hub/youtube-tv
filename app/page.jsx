@@ -3212,10 +3212,20 @@ export default function YouTubePlaylistPlayer() {
       const { open } = await import('@tauri-apps/plugin-dialog');
       const selected = await open({
         multiple: true,
-        filters: [{
-          name: 'Video Files',
-          extensions: ['mp4', 'webm', 'MP4', 'WEBM']
-        }],
+        filters: [
+          {
+            name: 'Video Files',
+            extensions: ['mp4', 'webm', 'avi', 'mov', 'wmv', 'flv', 'm4v', 'mkv', 'MP4', 'WEBM', 'AVI', 'MOV', 'WMV', 'FLV', 'M4V', 'MKV']
+          },
+          {
+            name: 'MKV Files',
+            extensions: ['mkv', 'MKV']
+          },
+          {
+            name: 'All Files',
+            extensions: ['*']
+          }
+        ],
         title: 'Select video files to add to playlist'
       });
 
@@ -3882,11 +3892,11 @@ export default function YouTubePlaylistPlayer() {
           filters: [
             {
               name: 'Video Files',
-              extensions: ['mp4', 'webm', 'avi', 'mov', 'wmv', 'flv', 'm4v']
+              extensions: ['mp4', 'webm', 'avi', 'mov', 'wmv', 'flv', 'm4v', 'mkv', 'MP4', 'WEBM', 'AVI', 'MOV', 'WMV', 'FLV', 'M4V', 'MKV']
             },
             {
               name: 'MKV Files',
-              extensions: ['mkv']
+              extensions: ['mkv', 'MKV']
             },
             {
               name: 'All Files',
