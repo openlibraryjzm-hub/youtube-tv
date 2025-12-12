@@ -10,6 +10,12 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "fs:allow-read-text-file",
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [
+        { "path": "**" }
+      ]
+    },
     "fs:allow-write-text-file",
     "fs:write-all",
     "shell:allow-open"

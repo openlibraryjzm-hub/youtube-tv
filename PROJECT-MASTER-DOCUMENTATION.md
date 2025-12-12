@@ -1,7 +1,7 @@
 # YouTube TV - Complete Master Documentation
 
-**Last Updated:** 2025-01-09  
-**Version:** 2.0 (Tauri Production Ready)  
+**Last Updated:** 2025-01-10  
+**Version:** 2.1 (Thumbnail & Local Video Improvements)  
 **Status:** ✅ **PRODUCTION READY - FULLY FUNCTIONAL**
 
 > **🎯 Purpose:** This is the definitive, comprehensive documentation for the YouTube TV desktop application. Read this to understand everything: architecture, tools, dependencies, code structure, user experience, build process, and the breakthrough solutions that made it work.
@@ -472,6 +472,61 @@ pub fn get_user_data(user_id: String) -> Result<UserData, String> {
    - React detects video ended
    - Automatically advances to next video in playlist
    - Shuffle order determines next video
+
+### Local Video Playback Flow
+
+1. **User Clicks Local Video:**
+   - React detects `local:file://` prefix in video ID
+   - Extracts file path from video object or video ID
+   - **Lazy Loading:** Only loads file when selected (prevents 6GB+ memory crashes)
+   - Uses Tauri `readFile()` to read file as binary
+   - Creates blob URL from file data
+   - Sets video element `src` to blob URL
+
+2. **Playback Behavior:**
+   - **Always starts at 0:00** - Simple, consistent behavior
+   - No progress saving for local videos
+   - Smooth autoplay to next video when current ends
+   - User can seek/scrub normally (no aggressive resets)
+
+3. **Thumbnail Extraction:**
+   - Extracts thumbnail from video frame using canvas
+   - Saves to `%APPDATA%\Roaming\YouTube TV\thumbnails\`
+   - Uses blob URLs for display (same pattern as video playback)
+   - Works for MP4, WebM, and other formats
+   - MKV files may not extract thumbnails (playback still works)
+
+### Thumbnail System (Local Files)
+
+1. **Thumbnail Storage:**
+   - Thumbnails saved as JPEG files in `thumbnails\` directory
+   - File naming: Hash of video ID (e.g., `9ae20e84a7615714.jpg`)
+   - Extracted via FFmpeg (Rust backend) or canvas (frontend)
+
+2. **Thumbnail Loading:**
+   - Uses Tauri `fs` plugin to read thumbnail file
+   - Creates blob URL from file data (same pattern as videos)
+   - Cached in `window.thumbnailBlobCache` Map
+   - Playlist covers use async `ThumbnailImage` component
+
+3. **Supported Formats:**
+   - MP4, WebM, AVI, MOV, WMV, FLV, M4V: Full thumbnail support
+   - MKV: Playback supported, thumbnails may not extract
+
+### Lazy Loading System
+
+**Problem Solved:** Large playlists (6GB+, 12+ videos) would crash app when all files loaded at once.
+
+**Solution:**
+- File paths stored in database/state (not blob URLs)
+- Blob URLs created **only** when video is selected to play
+- Only one video file in memory at a time
+- Large files (500MB+) may take a few seconds to load (expected)
+
+**Benefits:**
+- ✅ 6GB+ playlists work without crashing
+- ✅ Memory usage stays low
+- ✅ App remains responsive during large folder uploads
 
 ### Save Flow (Critical)
 

@@ -5,6 +5,7 @@ use std::sync::OnceLock;
 use std::fs;
 use std::collections::HashSet;
 use std::ffi::OsStr;
+use std::io::Write;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UserData {
@@ -91,6 +92,31 @@ fn get_db_path() -> Result<PathBuf, String> {
     let _ = DB_PATH.set(db_path.clone());
     eprintln!("📁 Database path: {}", db_path.display());
     Ok(db_path)
+}
+
+fn get_thumbnails_dir() -> Result<PathBuf, String> {
+    let db_path = get_db_path()?;
+    let thumbnails_dir = db_path.parent().unwrap().join("thumbnails");
+    
+    // Create thumbnails directory if it doesn't exist
+    std::fs::create_dir_all(&thumbnails_dir)
+        .map_err(|e| format!("Could not create thumbnails directory: {}", e))?;
+    
+    Ok(thumbnails_dir)
+}
+
+fn get_thumbnail_path(video_id: &str) -> Result<PathBuf, String> {
+    use std::hash::{Hash, Hasher};
+    use std::collections::hash_map::DefaultHasher;
+    
+    // Create a hash of the video ID for the filename
+    let mut hasher = DefaultHasher::new();
+    video_id.hash(&mut hasher);
+    let hash = hasher.finish();
+    let filename = format!("{:x}.jpg", hash);
+    
+    let thumbnails_dir = get_thumbnails_dir()?;
+    Ok(thumbnails_dir.join(filename))
 }
 
 fn get_connection() -> Result<Connection> {
@@ -1182,7 +1208,7 @@ pub fn scan_local_folder(folder_path: String) -> Result<Vec<serde_json::Value>, 
     eprintln!("✅ Path exists and is a directory");
     
     let mut video_files = Vec::new();
-    let video_extensions = ["mp4", "webm"]; // Will be compared case-insensitively
+    let video_extensions = ["mp4", "webm", "mkv", "avi", "mov", "wmv", "flv", "m4v"]; // Will be compared case-insensitively
     
     fn scan_directory(dir: &PathBuf, extensions: &[&str], files: &mut Vec<serde_json::Value>) -> Result<(), String> {
         eprintln!("📂 Scanning directory: {:?}", dir);
@@ -1273,5 +1299,181 @@ pub fn scan_local_folder(folder_path: String) -> Result<Vec<serde_json::Value>, 
     
     eprintln!("✅ Total videos found: {}", video_files.len());
     Ok(video_files)
+}
+
+#[tauri::command]
+pub fn save_thumbnail(video_id: String, base64_data: String) -> Result<String, String> {
+    eprintln!("💾 save_thumbnail called for video_id: {}", video_id);
+    
+    // Remove data URL prefix if present
+    let base64_data = base64_data
+        .strip_prefix("data:image/jpeg;base64,")
+        .or_else(|| base64_data.strip_prefix("data:image/png;base64,"))
+        .unwrap_or(&base64_data);
+    
+    // Decode base64 using the new Engine API
+    use base64::{Engine as _, engine::general_purpose};
+    let image_data = general_purpose::STANDARD
+        .decode(base64_data)
+        .map_err(|e| format!("Failed to decode base64: {}", e))?;
+    
+    // Get thumbnail path
+    let thumbnail_path = get_thumbnail_path(&video_id)?;
+    
+    // Write thumbnail file
+    let mut file = std::fs::File::create(&thumbnail_path)
+        .map_err(|e| format!("Failed to create thumbnail file: {}", e))?;
+    file.write_all(&image_data)
+        .map_err(|e| format!("Failed to write thumbnail file: {}", e))?;
+    
+    eprintln!("✅ Thumbnail saved to: {}", thumbnail_path.display());
+    Ok(thumbnail_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn get_thumbnail_path_command(video_id: String) -> Result<String, String> {
+    let path = get_thumbnail_path(&video_id)?;
+    
+    // Check if file exists
+    if path.exists() {
+        Ok(path.to_string_lossy().to_string())
+    } else {
+        Err("Thumbnail file does not exist".to_string())
+    }
+}
+
+#[tauri::command]
+pub fn get_thumbnail_data_url(video_id: String) -> Result<String, String> {
+    let path = get_thumbnail_path(&video_id)?;
+    
+    // Check if file exists
+    if !path.exists() {
+        return Err("Thumbnail file does not exist".to_string());
+    }
+    
+    // Read file as bytes
+    let image_data = std::fs::read(&path)
+        .map_err(|e| format!("Failed to read thumbnail file: {}", e))?;
+    
+    // Encode as base64
+    use base64::{Engine as _, engine::general_purpose};
+    let base64_string = general_purpose::STANDARD.encode(&image_data);
+    
+    // Return as data URL
+    Ok(format!("data:image/jpeg;base64,{}", base64_string))
+}
+
+#[tauri::command]
+pub fn extract_video_thumbnail(video_path: String, video_id: String) -> Result<String, String> {
+    eprintln!("🎬 extract_video_thumbnail called for: {}", video_path);
+    
+    // Get thumbnail path
+    let thumbnail_path = get_thumbnail_path(&video_id)?;
+    
+    // Check if thumbnail already exists
+    if thumbnail_path.exists() {
+        eprintln!("✅ Thumbnail already exists: {}", thumbnail_path.display());
+        return Ok(thumbnail_path.to_string_lossy().to_string());
+    }
+    
+    // Try to extract thumbnail using FFmpeg
+    use std::process::Command;
+    
+    // First, try to extract embedded cover art (if available in MP4)
+    // For MP4 files, try to extract embedded cover art first
+    if video_path.to_lowercase().ends_with(".mp4") || video_path.to_lowercase().ends_with(".m4v") {
+        let mut extract_cover = Command::new("ffmpeg");
+        extract_cover
+            .arg("-i")
+            .arg(&video_path)
+            .arg("-map")
+            .arg("0:v:0")
+            .arg("-frames:v")
+            .arg("1")
+            .arg("-vf")
+            .arg("scale=320:180:force_original_aspect_ratio=decrease,pad=320:180:(ow-iw)/2:(oh-ih)/2")
+            .arg("-y")
+            .arg(&thumbnail_path);
+        
+        // Hide output on Windows
+        #[cfg(windows)]
+        {
+            extract_cover.stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null());
+        }
+        
+        let cover_result = extract_cover.output();
+        
+        if let Ok(output) = cover_result {
+            if output.status.success() && thumbnail_path.exists() {
+                eprintln!("✅ Extracted thumbnail using FFmpeg (first frame)");
+                return Ok(thumbnail_path.to_string_lossy().to_string());
+            }
+        }
+    }
+    
+    // If cover art extraction failed, try to get a frame at 5-10% of duration
+    // First, get video duration using ffprobe
+    let mut probe = Command::new("ffprobe");
+    probe
+        .arg("-v")
+        .arg("error")
+        .arg("-show_entries")
+        .arg("format=duration")
+        .arg("-of")
+        .arg("default=noprint_wrappers=1:nokey=1")
+        .arg(&video_path);
+    
+    #[cfg(windows)]
+    {
+        probe.stderr(std::process::Stdio::null());
+    }
+    
+    let duration_str = probe.output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .and_then(|s| s.trim().parse::<f64>().ok());
+    
+    let seek_time = if let Some(duration) = duration_str {
+        // Seek to 5-10% of duration, but at least 0.5s and at most 5s
+        let percent = duration * 0.075; // 7.5% as middle ground
+        percent.max(0.5).min(5.0)
+    } else {
+        1.0 // Default to 1 second if we can't get duration
+    };
+    
+    eprintln!("⏩ Seeking to {} seconds for thumbnail", seek_time);
+    
+    // Extract frame at specific time
+    let mut extract_frame = Command::new("ffmpeg");
+    extract_frame
+        .arg("-i")
+        .arg(&video_path)
+        .arg("-ss")
+        .arg(&format!("{:.2}", seek_time))
+        .arg("-vframes")
+        .arg("1")
+        .arg("-vf")
+        .arg("scale=320:180:force_original_aspect_ratio=decrease,pad=320:180:(ow-iw)/2:(oh-ih)/2")
+        .arg("-y")
+        .arg(&thumbnail_path);
+    
+    #[cfg(windows)]
+    {
+        extract_frame.stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+    }
+    
+    let frame_result = extract_frame.output();
+    
+    if let Ok(output) = frame_result {
+        if output.status.success() && thumbnail_path.exists() {
+            eprintln!("✅ Extracted thumbnail using FFmpeg (frame at {}s)", seek_time);
+            return Ok(thumbnail_path.to_string_lossy().to_string());
+        }
+    }
+    
+    // If FFmpeg extraction failed, return error
+    Err(format!("Failed to extract thumbnail using FFmpeg. Make sure FFmpeg is installed and in PATH."))
 }
 

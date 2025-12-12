@@ -14,26 +14,38 @@ git add .
 # AI analyzes all changes since last push and updates this message
 $tempFile = "commit-msg-temp.txt"
 $commitMessage = @"
-[AI] User Request: "update documentation to reflect new git pushing protocol"
+[AI] Major Updates: Thumbnail System, Local Video Playback, Lazy Loading, MKV Support
 
-Changes:
-- Updated git push protocol: AI now updates this script's commit message when user requests push
-- Updated MASTER-PROMPT.txt - Added new git push protocol instructions
-- Updated AI-ONBOARDING-PROMPT.md - Updated git workflow section with new push protocol
-- Updated GIT-COMMIT-PROTOCOL.md - Updated workflow to reflect script-based approach
-- Created push-to-github.ps1 - New script that AI updates before user runs it
-- Replaced push-documentation-updates.ps1 with push-to-github.ps1
+Recent Changes:
+- Fixed thumbnail loading: Switched from data URLs to blob URLs for reliable local file thumbnails
+- Fixed playlist cover thumbnails: Now use async ThumbnailImage component for all playlist covers
+- Improved local video playback: Always start at 0:00, smooth autoplay to next video, fixed pause/unpause glitches
+- Implemented lazy loading: Video files only loaded when selected to play (prevents 6GB+ memory crashes)
+- Added MKV file support: Separate filter in file dialog, playback support (thumbnails may not extract)
+- Fixed video seeking: Removed aggressive currentTime resets that prevented scrubbing
+- Fixed first pause reset bug: Removed thumbnail extraction reset that caused video to jump to 0:00
+- Added asset protocol configuration: Configured Tauri asset protocol scope for thumbnail access
+- Enhanced error handling: Better error messages for large/corrupted video files
+
+Technical Improvements:
+- Thumbnails now use Tauri fs plugin to read files and create blob URLs (same pattern as videos)
+- Local videos simplified: No progress saving, always start fresh at 0:00, smooth transitions
+- Lazy loading prevents memory issues with large playlists (6GB+ folders now work)
+- File dialog filters: Added separate MKV filter and "All Files" option for better file selection
 
 Files Modified:
-- MASTER-PROMPT.txt
-- AI-ONBOARDING-PROMPT.md
-- GIT-COMMIT-PROTOCOL.md
+- app/page.jsx: Thumbnail system, local video playback, lazy loading, MKV support
+- src-tauri/tauri.conf.json: Added asset protocol configuration, blob: support in CSP
+- push-to-github.ps1: Updated commit message
 
-Files Created:
-- push-to-github.ps1 (new script with auto-update protocol)
-
-Files Deleted:
-- push-documentation-updates.ps1 (replaced by push-to-github.ps1)
+Key Features:
+✅ Thumbnails work reliably for local files (blob URLs)
+✅ Playlist covers show thumbnails correctly
+✅ Local videos play smoothly without glitches
+✅ Large playlists (6GB+) work without crashing
+✅ MKV files can be added and played
+✅ Video seeking/scrubbing works properly
+✅ No pause/unpause glitches
 "@
 
 # Write to temp file

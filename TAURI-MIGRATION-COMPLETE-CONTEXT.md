@@ -1,10 +1,16 @@
 # Tauri Migration - Complete Context & Knowledge Base
 
 **Date Created:** 2025-01-09  
-**Last Updated:** 2025-01-09  
+**Last Updated:** 2025-01-10  
 **Project:** YouTube TV Desktop App  
 **Migration:** Electron → Tauri v2  
 **Status:** ✅ **PRODUCTION READY - FULLY FUNCTIONAL**
+
+**Recent Updates (2025-01-10):**
+- Fixed thumbnail loading: Switched to blob URLs for reliable local file thumbnails
+- Improved local video playback: Always start at 0:00, smooth autoplay, fixed glitches
+- Implemented lazy loading: Prevents crashes with large playlists (6GB+)
+- Added MKV support: File dialog filters and playback support
 
 ---
 

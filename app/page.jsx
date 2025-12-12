@@ -379,6 +379,217 @@ function formatTimestamp(timestamp) {
   return `Just now`;
 }
 
+// Component to handle async thumbnail loading
+function ThumbnailImage({ videoId, alt }) {
+  const [src, setSrc] = useState('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE4MCIgZmlsbD0iIzFmMjkzNyIvPjxwYXRoIGQ9Ik0xMjggOTBsNDAgMjV2LTUwbC00MCAyNXoiIGZpbGw9IiM2YjcyODAiLz48L3N2Zz4=');
+  
+  useEffect(() => {
+    let mounted = true;
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+    
+    const loadThumbnail = async (isRetry = false) => {
+      try {
+        const thumbnailSrc = await getVideoThumbnail(videoId);
+        if (mounted) {
+          // Only update if we got a real thumbnail (not placeholder)
+          if (thumbnailSrc && !thumbnailSrc.includes('data:image/svg')) {
+            setSrc(thumbnailSrc);
+          } else if (!isRetry && retryCount < MAX_RETRIES) {
+            // Retry after a short delay if we got placeholder
+            retryCount++;
+            setTimeout(() => {
+              if (mounted) {
+                loadThumbnail(true);
+              }
+            }, 1000 * retryCount); // Exponential backoff: 1s, 2s, 3s
+          } else {
+            // Keep placeholder if all retries failed
+            setSrc(thumbnailSrc);
+          }
+        }
+      } catch (error) {
+        console.error("❌ Error loading thumbnail:", error);
+        // Keep placeholder on error
+      }
+    };
+    
+    loadThumbnail();
+    
+    // Listen for thumbnail ready events
+    const handleThumbnailReady = (event) => {
+      if (event.detail?.videoId === videoId && mounted) {
+        retryCount = 0; // Reset retry count on new event
+        loadThumbnail();
+      }
+    };
+    
+    window.addEventListener('thumbnailReady', handleThumbnailReady);
+    
+    return () => {
+      mounted = false;
+      window.removeEventListener('thumbnailReady', handleThumbnailReady);
+    };
+  }, [videoId]);
+  
+  return (
+    <img 
+      src={src} 
+      alt={alt} 
+      className="w-full h-full object-cover" 
+      loading="lazy"
+      onError={(e) => {
+        // Silently fail - we'll show placeholder
+        // Don't spam console with errors for placeholders
+        if (!src.includes('data:image/svg')) {
+          console.error("❌ Image failed to load for video:", videoId);
+          console.error("❌ Image src:", e.target.src?.substring(0, 100));
+        }
+      }}
+    />
+  );
+}
+
+// Initialize thumbnail blob cache on window object for global access
+if (typeof window !== 'undefined' && !window.thumbnailBlobCache) {
+  window.thumbnailBlobCache = new Map();
+}
+
+// Synchronous helper function to get thumbnail URL (for use in src attributes)
+// Returns placeholder for local files, actual URL for YouTube
+function getVideoThumbnailSync(videoId) {
+  if (!videoId) {
+    return '/no-thumb.jpg';
+  }
+  
+  // Check if it's a local file
+  if (typeof videoId === 'string' && videoId.startsWith('local:file://')) {
+    // Check if we have a thumbnail path stored (synchronously accessible)
+    if (window.localVideoThumbnails && window.localVideoThumbnails.has(videoId)) {
+      const thumbnail = window.localVideoThumbnails.get(videoId);
+      
+      // If it's a file path, we'll need to convert it async, but for now return placeholder
+      // The ThumbnailImage component will handle the async conversion
+      if (thumbnail && typeof thumbnail === 'string' && !thumbnail.startsWith('data:image/')) {
+        // Return URL-encoded SVG placeholder (avoids CSP issues)
+        return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='180'%3E%3Crect width='320' height='180' fill='%231f2937'/%3E%3Cpath d='M128 90l40 25v-50l-40 25z' fill='%236b7280'/%3E%3C/svg%3E";
+      }
+      
+      // If it's a data URL, return it
+      if (thumbnail && typeof thumbnail === 'string' && thumbnail.startsWith('data:image/')) {
+        return thumbnail;
+      }
+    }
+    
+    // Fallback: Use URL-encoded SVG placeholder (avoids CSP issues)
+    return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='180'%3E%3Crect width='320' height='180' fill='%231f2937'/%3E%3Cpath d='M128 90l40 25v-50l-40 25z' fill='%236b7280'/%3E%3C/svg%3E";
+  }
+  
+  // Only use YouTube thumbnail URL if it's a valid YouTube video ID
+  if (typeof videoId === 'string' && !videoId.includes('local:file://') && !videoId.includes('://') && videoId.length === 11) {
+    return `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
+  }
+  
+  return '/no-thumb.jpg';
+}
+
+// Async helper function to get thumbnail URL (for ThumbnailImage component)
+async function getVideoThumbnail(videoId) {
+  if (!videoId) {
+    return '/no-thumb.jpg';
+  }
+  
+  // Check if it's a local file
+  if (typeof videoId === 'string' && videoId.startsWith('local:file://')) {
+    // Check if we have a thumbnail path stored
+    if (window.localVideoThumbnails && window.localVideoThumbnails.has(videoId)) {
+      const thumbnail = window.localVideoThumbnails.get(videoId);
+      
+      // If it's a file path (not a data URL), convert it using Tauri's convertFileSrc
+      if (thumbnail && typeof thumbnail === 'string' && !thumbnail.startsWith('data:image/')) {
+        // Check cache first (now stores convertFileSrc URLs, not blob URLs)
+        if (window.thumbnailBlobCache && window.thumbnailBlobCache.has(thumbnail)) {
+          return window.thumbnailBlobCache.get(thumbnail);
+        }
+        
+        if (isTauri && window.__TAURI_INTERNALS__) {
+          // Use Tauri fs plugin to read file and create blob URL - same approach as videos
+          try {
+            const { readFile } = await import('@tauri-apps/plugin-fs');
+            // Read thumbnail file as binary
+            const fileData = await readFile(thumbnail);
+            // Create blob from binary data
+            const blob = new Blob([fileData], { type: 'image/jpeg' });
+            const blobUrl = URL.createObjectURL(blob);
+            
+            // Cache the blob URL
+            if (!window.thumbnailBlobCache) {
+              window.thumbnailBlobCache = new Map();
+            }
+            window.thumbnailBlobCache.set(thumbnail, blobUrl);
+            console.log("✅ Loaded thumbnail as blob URL:", blobUrl);
+            return blobUrl;
+          } catch (fsError) {
+            // If file read fails, file might not exist yet or still extracting
+            console.warn("⚠️ Thumbnail file not available yet:", fsError);
+            // Return placeholder - file might still be extracting
+            return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='180'%3E%3Crect width='320' height='180' fill='%231f2937'/%3E%3Cpath d='M128 90l40 25v-50l-40 25z' fill='%236b7280'/%3E%3C/svg%3E";
+          }
+        }
+        // Fallback: try to use the path directly (won't work but won't crash)
+        return thumbnail;
+      }
+      
+      // If it's still a data URL (fallback), return it
+      if (thumbnail && typeof thumbnail === 'string' && thumbnail.startsWith('data:image/')) {
+        return thumbnail;
+      }
+    }
+    
+    // Try to get thumbnail path from backend and load as blob URL (in case it exists but wasn't loaded yet)
+    if (isTauri && window.__TAURI_INTERNALS__) {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const { readFile } = await import('@tauri-apps/plugin-fs');
+        const filePath = await invoke('get_thumbnail_path_command', { videoId });
+        if (filePath) {
+          // Read file and create blob URL
+          const fileData = await readFile(filePath);
+          const blob = new Blob([fileData], { type: 'image/jpeg' });
+          const blobUrl = URL.createObjectURL(blob);
+          
+          // Store in Map for future use
+          if (!window.localVideoThumbnails) {
+            window.localVideoThumbnails = new Map();
+          }
+          window.localVideoThumbnails.set(videoId, filePath);
+          
+          // Cache the blob URL
+          if (!window.thumbnailBlobCache) {
+            window.thumbnailBlobCache = new Map();
+          }
+          window.thumbnailBlobCache.set(filePath, blobUrl);
+          
+          console.log("✅ Loaded thumbnail as blob URL from backend (backend check)");
+          return blobUrl;
+        }
+      } catch (error) {
+        // Thumbnail doesn't exist yet, that's OK
+      }
+    }
+    
+    // Fallback: Use URL-encoded SVG placeholder (avoids CSP issues)
+    return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='180'%3E%3Crect width='320' height='180' fill='%231f2937'/%3E%3Cpath d='M128 90l40 25v-50l-40 25z' fill='%236b7280'/%3E%3C/svg%3E";
+  }
+  
+  // Only use YouTube thumbnail URL if it's a valid YouTube video ID
+  if (typeof videoId === 'string' && !videoId.includes('local:file://') && !videoId.includes('://') && videoId.length === 11) {
+    return `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
+  }
+  
+  return '/no-thumb.jpg';
+}
+
 async function fetchVideosByChannel(channelId, maxResults = 5, apiKey) {
     try {
         const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=contentDetails&id=${channelId}&key=${apiKey}`);
@@ -462,6 +673,7 @@ export default function YouTubePlaylistPlayer() {
   const [renamingPlaylist, setRenamingPlaylist] = useState(null);
   const [playlistRenameInput, setPlaylistRenameInput] = useState("");
   const [showColoredFolders, setShowColoredFolders] = useState(false);
+  const [thumbnailUpdateTrigger, setThumbnailUpdateTrigger] = useState(0);
   const [showPlaylists, setShowPlaylists] = useState(true);
   const [sortMode, setSortMode] = useState('chronological');
   const [showColorPickerModal, setShowColorPickerModal] = useState(false);
@@ -608,6 +820,20 @@ export default function YouTubePlaylistPlayer() {
   };
   const titlesPendingFetch = useRef(new Set()); // Track video IDs currently being fetched (to prevent duplicate concurrent fetches)
   const apiCallQueue = useRef([]); // Queue for API calls to prevent rate limit issues
+  
+  // Listen for thumbnail extraction events to trigger UI updates
+  useEffect(() => {
+    const handleThumbnailReady = (event) => {
+      console.log("🎨 Thumbnail ready event received for:", event.detail?.videoId);
+      setThumbnailUpdateTrigger(prev => prev + 1);
+    };
+    
+    window.addEventListener('thumbnailReady', handleThumbnailReady);
+    
+    return () => {
+      window.removeEventListener('thumbnailReady', handleThumbnailReady);
+    };
+  }, []);
   const isProcessingApiQueue = useRef(false); // Track if API queue is being processed
   const lastApiCallTime = useRef(0); // Track last API call time for rate limiting
   const isSavingRef = useRef(false); // Track if we're currently saving to prevent snapshot overwrites
@@ -3030,6 +3256,34 @@ export default function YouTubePlaylistPlayer() {
       const playlist = playlists[playlistIndex];
       const updatedVideos = [...playlist.videos, ...videoFiles];
 
+      // Extract thumbnails for new videos in background
+      if (isTauri && window.__TAURI_INTERNALS__) {
+        videoFiles.forEach(async (video) => {
+          try {
+            const { invoke } = await import('@tauri-apps/api/core');
+            const thumbnailPath = await invoke('extract_video_thumbnail', {
+              videoPath: video.filePath,
+              videoId: video.id
+            });
+            
+            // Store thumbnail path in Map
+            if (!window.localVideoThumbnails) {
+              window.localVideoThumbnails = new Map();
+            }
+            window.localVideoThumbnails.set(video.id, thumbnailPath);
+            
+            // Trigger UI update via custom event
+            window.dispatchEvent(new CustomEvent('thumbnailReady', { detail: { videoId: video.id } }));
+            
+            console.log("✅ Thumbnail extracted for:", video.id);
+            console.log("📁 Thumbnail path:", thumbnailPath);
+          } catch (error) {
+            console.warn("⚠️ Failed to extract thumbnail for", video.id, ":", error);
+            // Continue anyway - thumbnail extraction is not critical
+          }
+        });
+      }
+
       // Update playlist in state
       setPlaylists(prev => prev.map((p, idx) => 
         idx === playlistIndex 
@@ -3037,20 +3291,28 @@ export default function YouTubePlaylistPlayer() {
           : p
       ));
 
-      // Save to database
+      // Save to database - use playlist ID instead of index to avoid mapping issues
       const currentData = await fetchUserData(userId || 'default');
       if (currentData) {
-        const updatedPlaylists = currentData.playlists.map((p, idx) => 
-          idx === playlistIndex 
-            ? { ...p, videos: updatedVideos }
+        // Convert video objects to just IDs (strings) for database storage
+        const videosAsIds = updatedVideos.map(v => typeof v === 'string' ? v : (v?.id || v));
+        
+        const updatedPlaylists = currentData.playlists.map((p) => 
+          p.id === playlistId
+            ? { ...p, videos: videosAsIds }
             : p
         );
 
+        // Ensure data structure matches UserData format expected by Rust
         const updatedData = {
-          ...currentData,
-          playlists: updatedPlaylists
+          playlists: updatedPlaylists,
+          playlistTabs: currentData.playlistTabs || [],
+          customColors: currentData.customColors || {},
+          colorOrder: currentData.colorOrder || [],
+          videoProgress: currentData.videoProgress || {}
         };
 
+        console.log('💾 Saving updated data with', updatedPlaylists.length, 'playlists');
         await saveUserData(userId || 'default', updatedData);
       }
 
@@ -3617,10 +3879,20 @@ export default function YouTubePlaylistPlayer() {
         // User chose individual files
         const selected = await open({
           multiple: true,
-          filters: [{
-            name: 'Video Files',
-            extensions: ['mp4', 'webm', 'MP4', 'WEBM']
-          }],
+          filters: [
+            {
+              name: 'Video Files',
+              extensions: ['mp4', 'webm', 'avi', 'mov', 'wmv', 'flv', 'm4v']
+            },
+            {
+              name: 'MKV Files',
+              extensions: ['mkv']
+            },
+            {
+              name: 'All Files',
+              extensions: ['*']
+            }
+          ],
           title: 'Select video files'
         });
 
@@ -3667,6 +3939,35 @@ export default function YouTubePlaylistPlayer() {
         playlistName = fileName.replace(/\.[^/.]+$/, ''); // Remove extension
       }
       
+      // Extract thumbnails for new videos in background
+      if (isTauri && window.__TAURI_INTERNALS__) {
+        videoFiles.forEach(async (video) => {
+          try {
+            const { invoke } = await import('@tauri-apps/api/core');
+            const filePath = video.filePath || video.id.replace('local:file://', '');
+            const thumbnailPath = await invoke('extract_video_thumbnail', {
+              videoPath: filePath,
+              videoId: video.id
+            });
+            
+            // Store thumbnail path in Map
+            if (!window.localVideoThumbnails) {
+              window.localVideoThumbnails = new Map();
+            }
+            window.localVideoThumbnails.set(video.id, thumbnailPath);
+            
+            // Trigger UI update via custom event
+            window.dispatchEvent(new CustomEvent('thumbnailReady', { detail: { videoId: video.id } }));
+            
+            console.log("✅ Thumbnail extracted for:", video.id);
+            console.log("📁 Thumbnail path:", thumbnailPath);
+          } catch (error) {
+            console.warn("⚠️ Failed to extract thumbnail for", video.id, ":", error);
+            // Continue anyway - thumbnail extraction is not critical
+          }
+        });
+      }
+
       // Create a new playlist with local videos
       const newPlaylist = {
         id: `local_${Date.now()}`,
@@ -3698,19 +3999,28 @@ export default function YouTubePlaylistPlayer() {
         });
       }
 
-      // Save to database
+      // Save to database - convert video objects to IDs for storage
       const currentData = await fetchUserData(userId || 'default');
       if (currentData) {
-        const updatedPlaylists = [...(currentData.playlists || []), newPlaylist];
+        // Convert video objects to just IDs (strings) for database storage
+        const videosAsIds = videoFiles.map(v => typeof v === 'string' ? v : (v?.id || v));
+        const playlistToSave = {
+          ...newPlaylist,
+          videos: videosAsIds
+        };
+        
+        const updatedPlaylists = [...(currentData.playlists || []), playlistToSave];
         const updatedTabs = [...(currentData.playlistTabs || [])];
         if (updatedTabs.length > 0 && activePlaylistTab < updatedTabs.length) {
           updatedTabs[activePlaylistTab].playlistIds.push(newPlaylist.id);
         }
 
         const updatedData = {
-          ...currentData,
           playlists: updatedPlaylists,
-          playlistTabs: updatedTabs
+          playlistTabs: updatedTabs,
+          customColors: currentData.customColors || {},
+          colorOrder: currentData.colorOrder || [],
+          videoProgress: currentData.videoProgress || {}
         };
 
         await saveUserData(userId || 'default', updatedData);
@@ -4762,7 +5072,7 @@ export default function YouTubePlaylistPlayer() {
         name: coloredFolder.name, // Use the colored folder's custom name (e.g., "yellow", "My Custom Name")
         videos: [...coloredFolder.videos], // Copy the videos
         groups: {}, // Start with empty groups
-        thumbnail: getVideoThumbnail(coloredFolder.videos[0]?.id),
+        thumbnail: getVideoThumbnailSync(coloredFolder.videos[0]?.id),
         isConvertedFromColoredFolder: true // Mark as converted to distinguish from regular colored folders
       };
 
@@ -4844,45 +5154,362 @@ export default function YouTubePlaylistPlayer() {
       video.style.height = '100%';
       video.style.objectFit = 'contain';
       video.controls = true;
-      video.autoplay = true;
       video.playsInline = true;
+      video.autoplay = true;
+      // Local videos always start at 0:00 - simple system
       
-      // Use Tauri's convertFileSrc to get proper file:// URL
+      // Lazy loading: Only read file and create blob URL when video is actually selected to play
+      // This prevents loading 6GB+ of video files into memory at once
       try {
         if (isTauri) {
-          const { convertFileSrc } = await import('@tauri-apps/api/core');
-          const convertedSrc = convertFileSrc(filePath);
-          console.log("📁 Converted file src:", convertedSrc);
-          video.src = convertedSrc;
+          const { readFile } = await import('@tauri-apps/plugin-fs');
+          console.log("📁 Lazy loading video file:", filePath);
+          
+          // Show loading state
+          setIsPlayerReady(false);
+          
+          // Lazy loading: Read file as binary (Uint8Array) - Tauri v2 readFile returns binary by default
+          // This only happens when user selects this specific video to play (not when adding to playlist)
+          // For large files (500MB+), this may take a few seconds - that's expected
+          console.log("⏳ Loading video file into memory (this may take a moment for large files)...");
+          const fileData = await readFile(filePath);
+          console.log("✅ File read successfully, size:", (fileData.length / 1024 / 1024).toFixed(2), "MB");
+          
+          // Detect MIME type from file extension
+          const extension = filePath.split('.').pop()?.toLowerCase();
+          let mimeType = 'video/mp4'; // default
+          const mimeTypes = {
+            'mp4': 'video/mp4',
+            'webm': 'video/webm',
+            'mkv': 'video/x-matroska',
+            'avi': 'video/x-msvideo',
+            'mov': 'video/quicktime',
+            'wmv': 'video/x-ms-wmv',
+            'flv': 'video/x-flv',
+            'm4v': 'video/x-m4v'
+          };
+          // Note: MKV files may not extract thumbnails properly, but playback should work
+          if (extension && mimeTypes[extension]) {
+            mimeType = mimeTypes[extension];
+          }
+          
+          // Create blob from binary data
+          const blob = new Blob([fileData], { type: mimeType });
+          const blobUrl = URL.createObjectURL(blob);
+          console.log("📁 Created blob URL (lazy loaded):", blobUrl);
+          
+          video.src = blobUrl;
+          
+          // Initialize thumbnail Map if needed
+          if (!window.localVideoThumbnails) {
+            window.localVideoThumbnails = new Map();
+          }
+          
+          // Extract thumbnail from video frame - create a hidden video element for extraction
+          let thumbnailExtracted = false;
+          let extractionAttempts = 0;
+          const maxAttempts = 3;
+          
+          const extractThumbnail = () => {
+            if (thumbnailExtracted) {
+              console.log("✅ Thumbnail already extracted for:", currentVideoId);
+              return;
+            }
+            
+            // Don't extract thumbnail if video is playing - wait until it's paused
+            if (!video.paused) {
+              console.log("⏸️ Video is playing, waiting to extract thumbnail...");
+              setTimeout(extractThumbnail, 2000);
+              return;
+            }
+            
+            extractionAttempts++;
+            if (extractionAttempts > maxAttempts) {
+              console.warn("⚠️ Max thumbnail extraction attempts reached");
+              return;
+            }
+            
+            // Check if video is ready
+            if (!video.duration || isNaN(video.duration) || video.duration === 0) {
+              console.log("⏳ Video duration not ready yet, attempt:", extractionAttempts);
+              if (extractionAttempts < maxAttempts) {
+                setTimeout(extractThumbnail, 500);
+              }
+              return;
+            }
+            
+            // Check if video dimensions are available
+            if (!video.videoWidth || !video.videoHeight || video.videoWidth === 0 || video.videoHeight === 0) {
+              console.log("⏳ Video dimensions not ready yet, attempt:", extractionAttempts);
+              if (extractionAttempts < maxAttempts) {
+                setTimeout(extractThumbnail, 500);
+              }
+              return;
+            }
+            
+            try {
+              console.log("🎬 Starting thumbnail extraction for:", currentVideoId, "attempt:", extractionAttempts);
+              console.log("📐 Video dimensions:", video.videoWidth, "x", video.videoHeight);
+              console.log("⏱️ Video duration:", video.duration);
+              
+              const canvas = document.createElement('canvas');
+              // Use standard thumbnail size (320x180) for consistency
+              canvas.width = 320;
+              canvas.height = 180;
+              const ctx = canvas.getContext('2d');
+              
+              if (!ctx) {
+                console.error("❌ Could not get canvas context");
+                return;
+              }
+              
+              // Local videos always start at 0:00 - no progress to restore
+              // Seek to a good frame (1 second or 10% of duration, whichever is smaller, but at least 0.5s)
+              const seekTime = Math.max(0.5, Math.min(1, video.duration * 0.1));
+              const targetTime = 0; // Always return to 0:00 for local videos
+              console.log("⏩ Seeking to:", seekTime, "for thumbnail extraction (will return to 0:00)");
+              
+              const extractThumb = () => {
+                try {
+                  console.log("📸 Drawing video frame to canvas...");
+                  console.log("📐 Canvas size:", canvas.width, "x", canvas.height);
+                  console.log("📐 Video size:", video.videoWidth, "x", video.videoHeight);
+                  
+                  // Draw the video frame to canvas - scale to fit
+                  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                  
+                  // Check if canvas has content by checking multiple pixels
+                  const testPixels = [
+                    ctx.getImageData(0, 0, 1, 1),
+                    ctx.getImageData(canvas.width / 2, canvas.height / 2, 1, 1),
+                    ctx.getImageData(canvas.width - 1, canvas.height - 1, 1, 1)
+                  ];
+                  
+                  const hasContent = testPixels.some(pixel => pixel.data[3] > 0);
+                  
+                  if (!hasContent) {
+                    console.warn("⚠️ Canvas appears empty, retrying...");
+                    thumbnailExtracted = false;
+                    if (extractionAttempts < maxAttempts) {
+                      setTimeout(() => {
+                        if (!window.localVideoThumbnails.has(currentVideoId)) {
+                          extractThumbnail();
+                        }
+                      }, 1000);
+                    }
+                    video.removeEventListener('seeked', extractThumb);
+                    return;
+                  }
+                  
+                  // Validate canvas has actual content before creating data URL
+                  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                  const hasValidContent = Array.from(imageData.data).some((val, idx) => idx % 4 === 3 && val > 0); // Check alpha channel
+                  
+                  if (!hasValidContent) {
+                    console.error("❌ Canvas has no valid content, cannot create thumbnail");
+                    thumbnailExtracted = false;
+                    video.removeEventListener('seeked', extractThumb);
+                    if (extractionAttempts < maxAttempts) {
+                      setTimeout(() => {
+                        if (!window.localVideoThumbnails.has(currentVideoId)) {
+                          extractThumbnail();
+                        }
+                      }, 1000);
+                    }
+                    return;
+                  }
+                  
+                  // Create data URL with error handling
+                  let thumbnailDataUrl;
+                  try {
+                    thumbnailDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                    
+                    // Validate the data URL was created successfully
+                    if (!thumbnailDataUrl || thumbnailDataUrl.length < 100 || !thumbnailDataUrl.startsWith('data:image/jpeg')) {
+                      throw new Error('Invalid data URL created');
+                    }
+                    
+                    console.log("✅ Thumbnail extracted successfully!");
+                    console.log("📊 Thumbnail data URL length:", thumbnailDataUrl.length, "chars");
+                  } catch (dataUrlError) {
+                    console.error("❌ Error creating data URL:", dataUrlError);
+                    thumbnailExtracted = false;
+                    video.removeEventListener('seeked', extractThumb);
+                    if (extractionAttempts < maxAttempts) {
+                      setTimeout(() => {
+                        if (!window.localVideoThumbnails.has(currentVideoId)) {
+                          extractThumbnail();
+                        }
+                      }, 1000);
+                    }
+                    return;
+                  }
+                  
+                  thumbnailExtracted = true;
+                  
+                  // Save thumbnail to file system instead of using data URL
+                  if (isTauri && window.__TAURI_INTERNALS__) {
+                    (async () => {
+                      try {
+                        const { invoke } = await import('@tauri-apps/api/core');
+                        const filePath = await invoke('save_thumbnail', {
+                          videoId: currentVideoId,
+                          base64Data: thumbnailDataUrl
+                        });
+                        console.log("💾 Thumbnail saved to file:", filePath);
+                        
+                        // Store file path in Map for quick lookup
+                        if (!window.localVideoThumbnails) {
+                          window.localVideoThumbnails = new Map();
+                        }
+                        window.localVideoThumbnails.set(currentVideoId, filePath);
+                        console.log("🗺️ Thumbnail path stored in Map for:", currentVideoId);
+                        
+                        // Reset video to saved progress or start
+                        video.currentTime = targetTime;
+                        
+                        // Set player ready after thumbnail extraction
+                        setIsPlayerReady(true);
+                        
+                        // Force UI update
+                        setTimeout(() => {
+                          if (window.setThumbnailUpdateTrigger) {
+                            console.log("🔄 Triggering UI update for thumbnail");
+                            window.setThumbnailUpdateTrigger(prev => prev + 1);
+                          }
+                        }, 100);
+                        
+                        // Trigger custom event
+                        window.dispatchEvent(new CustomEvent('thumbnailReady', { detail: { videoId: currentVideoId } }));
+                      } catch (error) {
+                        console.error("❌ Failed to save thumbnail to file:", error);
+                        // Fallback: still try to use data URL (might work in some cases)
+                        if (!window.localVideoThumbnails) {
+                          window.localVideoThumbnails = new Map();
+                        }
+                        window.localVideoThumbnails.set(currentVideoId, thumbnailDataUrl);
+                        // Don't reset currentTime after thumbnail extraction - user might have been watching
+                        setIsPlayerReady(true);
+                      }
+                    })();
+                  } else {
+                    // Fallback for non-Tauri: use data URL
+                    if (!window.localVideoThumbnails) {
+                      window.localVideoThumbnails = new Map();
+                    }
+                    window.localVideoThumbnails.set(currentVideoId, thumbnailDataUrl);
+                    // Don't reset currentTime after thumbnail extraction - user might have been watching
+                    setIsPlayerReady(true);
+                  }
+                  
+                  video.removeEventListener('seeked', extractThumb);
+                } catch (thumbError) {
+                  console.error("❌ Error extracting thumbnail:", thumbError);
+                  console.error("❌ Error stack:", thumbError.stack);
+                  thumbnailExtracted = false;
+                  video.removeEventListener('seeked', extractThumb);
+                  // Don't reset currentTime on error - let video continue playing
+                  
+                  // Retry if we haven't exceeded max attempts
+                  if (extractionAttempts < maxAttempts) {
+                    setTimeout(() => {
+                      if (!window.localVideoThumbnails.has(currentVideoId)) {
+                        extractThumbnail();
+                      }
+                    }, 1000);
+                  }
+                }
+              };
+              
+              // Set up seek handler before seeking
+              video.addEventListener('seeked', extractThumb, { once: true });
+              
+              // Only seek if video is paused (don't interrupt playback)
+              if (video.paused) {
+                // Now seek to extract frame
+                video.currentTime = seekTime;
+              } else {
+                // Video is playing, skip extraction for now
+                console.log("⏸️ Video is playing, skipping thumbnail extraction");
+                video.removeEventListener('seeked', extractThumb);
+              }
+            } catch (error) {
+              console.error("❌ Error setting up thumbnail extraction:", error);
+              console.error("❌ Error stack:", error.stack);
+              thumbnailExtracted = false;
+              
+              // Retry if we haven't exceeded max attempts
+              if (extractionAttempts < maxAttempts) {
+                setTimeout(() => {
+                  if (!window.localVideoThumbnails.has(currentVideoId)) {
+                    extractThumbnail();
+                  }
+                }, 1000);
+              }
+            }
+          };
+          
+          // Try extraction when metadata is loaded (duration available)
+          // Delay it a bit to let video start playing smoothly first
+          video.addEventListener('loadedmetadata', () => {
+            console.log("✅ Video metadata loaded, duration:", video.duration);
+            console.log("📐 Video dimensions:", video.videoWidth, "x", video.videoHeight);
+            // Delay thumbnail extraction to avoid interfering with initial playback
+            setTimeout(extractThumbnail, 1000);
+          });
+          
+          // Fallback: try when video can play through (video is definitely ready)
+          video.addEventListener('canplaythrough', () => {
+            console.log("▶️ Video can play through");
+            // Only extract if not already extracted and video is paused (not interfering with playback)
+            if (!thumbnailExtracted && video.paused) {
+              setTimeout(extractThumbnail, 500);
+            }
+          });
+          
+          // Clean up on unload
+          const cleanup = () => {
+            if (blobUrl) {
+              URL.revokeObjectURL(blobUrl);
+              console.log("🧹 Cleaned up blob URL");
+            }
+          };
+          window.addEventListener('beforeunload', cleanup);
         } else {
           // Fallback for non-Tauri (shouldn't happen, but just in case)
           video.src = `file:///${filePath}`;
         }
       } catch (error) {
-        console.error("❌ Error converting file src:", error);
-        // Fallback: try direct file path
-        video.src = filePath;
-      }
-
-      const savedProgress = getVideoProgress(currentVideoId);
-      if (savedProgress > 0) {
-        video.currentTime = savedProgress;
-      }
-
-      video.addEventListener('loadedmetadata', () => {
-        console.log("✅ Video metadata loaded, duration:", video.duration);
-        setIsPlayerReady(true);
-        if (savedProgress > 0 && savedProgress < video.duration * 0.95) {
-          video.currentTime = savedProgress;
+        console.error("❌ Error reading file:", error);
+        console.error("❌ Error details:", error.message, error.stack);
+        console.error("❌ File path was:", filePath);
+        setIsPlayerReady(false);
+        
+        // Try convertFileSrc as fallback
+        try {
+          if (isTauri) {
+            const { convertFileSrc } = await import('@tauri-apps/api/core');
+            const convertedSrc = convertFileSrc(filePath, 'asset');
+            console.log("📁 Fallback: Using convertFileSrc:", convertedSrc);
+            video.src = convertedSrc;
+          }
+        } catch (fallbackError) {
+          console.error("❌ Fallback also failed:", fallbackError);
+          alert(`Failed to load video file. The file may be too large or corrupted.\n\nFile: ${filePath.split(/[/\\]/).pop()}\n\nError: ${error.message || error}`);
         }
-      });
+      }
 
-      video.addEventListener('loadstart', () => {
-        console.log("🔄 Video load started");
-      });
-
-      video.addEventListener('canplay', () => {
-        console.log("▶️ Video can play");
+      // Local videos always start at 0:00 - set it once when metadata loads
+      let initialTimeSet = false;
+      
+      video.addEventListener('loadedmetadata', () => {
+        console.log("📊 Video metadata loaded");
+        // Set to 0:00 once when metadata is loaded, before any playback
+        if (!initialTimeSet) {
+          video.currentTime = 0;
+          initialTimeSet = true;
+          console.log("⏩ Set initial time to 0:00");
+        }
       });
 
       video.addEventListener('error', (e) => {
@@ -4900,23 +5527,26 @@ export default function YouTubePlaylistPlayer() {
       video.addEventListener('pause', () => {
         console.log("⏸️ Video paused");
         setIsPlaying(false);
-        saveVideoProgress(currentVideoId, video.currentTime);
+        // Don't save progress for local videos - always start at 0:00
       });
 
-      video.addEventListener('ended', () => {
-        console.log("⏹️ Video ended");
-        goToNextVideo();
-      });
+          video.addEventListener('ended', () => {
+            console.log("⏹️ Video ended - auto-playing next");
+            // Local videos always start at 0:00, no need to save/clear progress
+            // Auto-play next video
+            goToNextVideo();
+          });
 
       video.addEventListener('timeupdate', () => {
-        // Save progress every 5 seconds
-        if (Math.floor(video.currentTime) % 5 === 0) {
-          saveVideoProgress(currentVideoId, video.currentTime);
-        }
+        // Don't save progress for local videos - always start at 0:00
       });
 
       playerContainerRef.current.appendChild(video);
       localVideoRef.current = video;
+      
+      // Expose setThumbnailUpdateTrigger to window for thumbnail extraction callback
+      window.setThumbnailUpdateTrigger = setThumbnailUpdateTrigger;
+      
       console.log("✅ Local video element added to player container");
       return;
     }
@@ -4955,9 +5585,7 @@ export default function YouTubePlaylistPlayer() {
     if (isLocalFile(currentVideoId)) {
       initializePlayer();
       return () => {
-        if (localVideoRef.current && currentVideoId) {
-          saveVideoProgress(currentVideoId, localVideoRef.current.currentTime);
-        }
+        // Don't save progress for local videos - always start at 0:00
         destroyPlayer();
       };
     }
@@ -5438,10 +6066,7 @@ export default function YouTubePlaylistPlayer() {
                        return (
                         <div key={playlist.id} className={`text-left group relative ${originalIndex === currentPlaylistIndex ? 'ring-2 ring-blue-500 rounded-lg' : ''} ${isSelectedForDelete ? 'ring-4 ring-red-500 rounded-lg' : ''} ${isTargetPlaylist ? 'ring-4 ring-green-500 rounded-lg' : ''} ${pendingColor ? `ring-4 ${getRingColor(pendingColor)} rounded-lg` : ''}`}>
                           <div className={`aspect-video bg-gray-800 rounded-lg overflow-hidden relative ${originalIndex === currentPlaylistIndex ? 'outline-none' : ''} ${playlist.isColoredFolder && !playlist.isConvertedFromColoredFolder ? `border-2 ${groupColors[playlist.color]}` : ''}`}>
-                        <img src={(() => {
-                          const videoId = getPlaylistThumbnailVideoId(playlist);
-                          return videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : '/no-thumb.jpg';
-                        })()} alt={playlist.name} className="w-full h-full object-cover" loading="lazy" />
+                        <ThumbnailImage videoId={getPlaylistThumbnailVideoId(playlist)} alt={playlist.name} />
                         {/* Bulk delete checkbox overlay */}
                         {bulkDeleteMode && canDelete && (
                           <div className="absolute top-2 left-2 z-10">
@@ -5628,6 +6253,7 @@ export default function YouTubePlaylistPlayer() {
                                   <Trash2 size={20}/>
                                 </button>
                               )}
+                              {/* Show delete/rename/merge/export buttons for all regular playlists (not colored folders, not _unsorted_) */}
                               {!playlist.isColoredFolder && playlist.id !== '_unsorted_' && !bulkDeleteMode && !bulkTagMode && (
                                 <>
                                   <button 
@@ -5658,18 +6284,18 @@ export default function YouTubePlaylistPlayer() {
                                   >
                                     <Download size={20}/>
                                   </button>
-                                <button 
-                                  onClick={() => {
-                                    console.log('Delete playlist button clicked for:', playlist);
-                                    if (confirm(`Delete playlist "${playlist.name}" permanently?`)) {
-                                      deletePlaylist(playlist.id);
-                                    }
-                                  }}
-                                  title="Delete Playlist" 
-                                  className="bg-red-500/80 p-3 rounded-full hover:bg-red-500"
-                                >
-                                  <Trash2 size={20}/>
-                                </button>
+                                  <button 
+                                    onClick={() => {
+                                      console.log('Delete playlist button clicked for:', playlist);
+                                      if (confirm(`Delete playlist "${playlist.name}" permanently?`)) {
+                                        deletePlaylist(playlist.id);
+                                      }
+                                    }}
+                                    title="Delete Playlist" 
+                                    className="bg-red-500/80 p-3 rounded-full hover:bg-red-500"
+                                  >
+                                    <Trash2 size={20}/>
+                                  </button>
                                 </>
                               )}
                               {!bulkDeleteMode && !bulkTagMode && activePlaylistTab !== 0 && !playlist.isColoredFolder && (
@@ -5777,7 +6403,7 @@ export default function YouTubePlaylistPlayer() {
                               return (
                                 <button key={playlist.id} onClick={() => addPlaylistToTab(playlist.id)} className="text-left group">
                                   <div className="aspect-video bg-gray-800 rounded-lg overflow-hidden relative">
-                                    <img src={getVideoThumbnail(thumbnailVideoId)} alt={playlist.name} className="w-full h-full object-cover"/>
+                                    <ThumbnailImage videoId={thumbnailVideoId} alt={playlist.name} />
                                   </div>
                                   <h3 className="mt-2 text-sm truncate text-white group-hover:text-blue-400">{playlist.name}</h3>
                                   <p className="text-xs text-white/40 mt-1">{playlist.videos.length} videos</p>
@@ -5917,7 +6543,7 @@ export default function YouTubePlaylistPlayer() {
                       const isWatched = progress >= duration * 0.95;
                       const progressPercent = isWatched ? 100 : Math.min(100, (progress / duration) * 100);
                       return (
-                        <div key={video.id} draggable onDragStart={() => setDraggingVideoId(video.id)} className="relative group">
+                        <div key={`${video.id}-${thumbnailUpdateTrigger}`} draggable onDragStart={() => setDraggingVideoId(video.id)} className="relative group">
                           {(() => {
                             const pendingColor = bulkMode ? pendingBulkAssignments.get(video.id) : null;
                             const currentColor = getVideoGroupColor(displayedPlaylist, video.id);
@@ -5933,7 +6559,11 @@ export default function YouTubePlaylistPlayer() {
                             className={`w-full text-left ${borderColor ? `ring-2 ${borderColor} rounded-lg` : ''} ${pendingColor ? 'ring-4' : ''}`}
                           >
                             <div className="aspect-video bg-gray-800 rounded-lg overflow-hidden relative group/thumbnail">
-                              <img src={video.id ? `https://img.youtube.com/vi/${video.id}/mqdefault.jpg` : '/no-thumb.jpg'} alt={video.title} className="w-full h-full object-cover" loading="lazy" />
+                              <ThumbnailImage 
+                                key={`thumb-${video.id}-${thumbnailUpdateTrigger}`}
+                                videoId={video.id}
+                                alt={video.title}
+                              />
                               {/* Bulk mode 3x3 overlay */}
                               {bulkMode && (() => {
                                 // Show all 16 colors in a 4x4 grid
@@ -6189,7 +6819,7 @@ export default function YouTubePlaylistPlayer() {
                     <div key={entry.id} className="group">
                       <button onClick={() => { const pIdx = playlists.findIndex(p => p.id === entry.playlistId); if (pIdx !== -1) { const vIdx = playlists[pIdx].videos.findIndex(v => v.id === entry.videoId); if (vIdx !== -1) selectVideoFromMenu(vIdx, entry.playlistId) } }} className={`w-full text-left flex items-center gap-4 p-2 rounded-lg hover:bg-white/10 ${currentVideoId === entry.videoId ? 'ring-2 ring-blue-500' : ''}`}>
                         <div className="w-32 aspect-video bg-gray-800 rounded-lg overflow-hidden relative flex-shrink-0">
-                          <img src={getVideoThumbnail(entry.videoId)} alt={entry.title} className="w-full h-full object-cover" loading="lazy"/>
+                          <img src={getVideoThumbnailSync(entry.videoId)} alt={entry.title} className="w-full h-full object-cover" loading="lazy"/>
                         </div>
                         <div>
                           <h3 
@@ -6269,11 +6899,11 @@ export default function YouTubePlaylistPlayer() {
                 </div>
                 {searchResults.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {searchResults.map(video => (
-                      <div key={video.id} className="relative group">
+                    {searchResults.map((video, idx) => (
+                      <div key={`${video.id}-${thumbnailUpdateTrigger}`} className="relative group">
                         <button onClick={() => playOffPlaylistVideo(video)} className={`w-full text-left ${currentVideoId === video.id ? 'ring-2 ring-blue-500 rounded-lg' : ''}`}>
                           <div className="aspect-video bg-gray-800 rounded-lg overflow-hidden relative">
-                            <img src={`https://img.youtube.com/vi/${video.id}/mqdefault.jpg`} alt={video.title} className="w-full h-full object-cover" loading="lazy" />
+                            <ThumbnailImage videoId={video.id} alt={video.title} />
                           </div>
                           <h3 
                             className="text-white font-semibold mt-2 text-sm truncate hover:text-blue-400 cursor-pointer"
@@ -6429,7 +7059,7 @@ export default function YouTubePlaylistPlayer() {
                   className="text-left group"
                 >
                   <div className="aspect-video bg-gray-800 rounded-lg overflow-hidden relative">
-                    <img src={getVideoThumbnail(playlist.videos[0]?.id)} alt={playlist.name} className="w-full h-full object-cover"/>
+                    <ThumbnailImage videoId={getPlaylistThumbnailVideoId(playlist)} alt={playlist.name} />
                   </div>
                   <h3 className="mt-2 text-sm truncate text-white group-hover:text-blue-400">{playlist.name}</h3>
                 </button>
@@ -6701,7 +7331,7 @@ export default function YouTubePlaylistPlayer() {
                   className="text-left group"
                 >
                   <div className="aspect-video bg-gray-800 rounded-lg overflow-hidden relative">
-                    <img src={getVideoThumbnail(playlist.videos[0]?.id)} alt={playlist.name} className="w-full h-full object-cover"/>
+                    <ThumbnailImage videoId={getPlaylistThumbnailVideoId(playlist)} alt={playlist.name} />
                   </div>
                   <h3 className="mt-2 text-sm truncate text-white group-hover:text-blue-400">{playlist.name}</h3>
                   <p className="text-white/60 text-xs">{playlist.videos.length} videos</p>
@@ -6748,7 +7378,7 @@ export default function YouTubePlaylistPlayer() {
                       className="text-left group w-full"
                     >
                       <div className="aspect-video bg-gray-800 rounded-lg overflow-hidden relative">
-                        <img src={getVideoThumbnail(playlist.videos[0]?.id)} alt={playlist.name} className="w-full h-full object-cover"/>
+                        <img src={getVideoThumbnailSync(playlist.videos[0]?.id)} alt={playlist.name} className="w-full h-full object-cover"/>
                       </div>
                       <h3 className="mt-2 text-sm truncate text-white group-hover:text-blue-400">{playlist.name}</h3>
                       <p className="text-white/60 text-xs">{playlist.videos.length} videos</p>
