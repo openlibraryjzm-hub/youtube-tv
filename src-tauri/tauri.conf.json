@@ -18,10 +18,21 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data: blob: asset: http://asset.localhost https://asset.localhost https://img.youtube.com; media-src 'self' asset: http://asset.localhost https://asset.localhost blob: https://www.youtube.com; script-src 'self' 'unsafe-inline' https://www.youtube.com; frame-src 'self' https://www.youtube.com",
+      "csp": "default-src 'self'; img-src 'self' data: blob: asset: http://asset.localhost https://asset.localhost http://127.0.0.1:* https://img.youtube.com; media-src 'self' asset: http://asset.localhost https://asset.localhost http://127.0.0.1:* blob: https://www.youtube.com; script-src 'self' 'unsafe-inline' https://www.youtube.com; frame-src 'self' https://www.youtube.com",
       "assetProtocol": {
         "enable": true,
-        "scope": ["$APPDATA/YouTube TV/**"]
+        "scope": [
+          "$APPDATA/YouTube TV/**",
+          "$HOME/**",
+          "$USERPROFILE/**",
+          "$DOCUMENTS/**",
+          "$DOWNLOADS/**",
+          "$DESKTOP/**",
+          "$VIDEOS/**",
+          "$MUSIC/**",
+          "$PICTURES/**",
+          "**"
+        ]
       }
     }
   },

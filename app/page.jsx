@@ -1280,6 +1280,32 @@ export default function YouTubePlaylistPlayer() {
     setUserId(persistentUserId);
   }, []);
 
+  // Initialize video streaming server on app start (Tauri only)
+  useEffect(() => {
+    if (isTauri && window.__TAURI_INTERNALS__) {
+      const initVideoServer = async () => {
+        try {
+          console.log("🔄 [DEBUG] Initializing video streaming server...");
+          const invoke = await getInvoke();
+          if (invoke) {
+            const port = await invoke('start_video_server');
+            console.log("✅ [DEBUG] Video streaming server initialized on port:", port);
+            // Store port globally for debugging
+            window.videoServerPort = port;
+          } else {
+            console.error("❌ [DEBUG] getInvoke returned null");
+          }
+        } catch (error) {
+          console.error("❌ [DEBUG] Failed to initialize video server:", error);
+          console.error("❌ [DEBUG] Error details:", error.message, error.stack);
+        }
+      };
+      initVideoServer();
+    } else {
+      console.log("⚠️ [DEBUG] Not in Tauri environment, skipping video server init");
+    }
+  }, []);
+
   // Add keyboard shortcut for devtools (F12 or Ctrl+Shift+I)
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1314,6 +1340,7 @@ export default function YouTubePlaylistPlayer() {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
+
 
   // Expose recovery function (disabled for local database - data is per-user)
   useEffect(() => {
@@ -3237,7 +3264,7 @@ export default function YouTubePlaylistPlayer() {
       console.log('📁 Selected video files:', files);
 
       // Convert file paths to video objects
-      const videoFiles = files.map(filePath => {
+      let videoFiles = files.map(filePath => {
         const fileName = filePath.split(/[/\\]/).pop() || 'Unknown';
         const videoId = `local:file://${filePath}`;
         
@@ -3255,6 +3282,106 @@ export default function YouTubePlaylistPlayer() {
       }
 
       console.log(`✅ Adding ${videoFiles.length} video file(s) to playlist`);
+
+      // Automatically preprocess large files in the background (fast conversion)
+      const invoke = await getInvoke();
+      if (!invoke) {
+        throw new Error('Tauri invoke not available');
+      }
+
+      // Check file sizes and identify which need preprocessing
+      const filesToProcess = [];
+      const filesToKeep = [];
+      
+      for (const video of videoFiles) {
+        try {
+          const originalPath = video.filePath || video.id.replace('local:file://', '');
+          
+          // Check file size
+          const fileSizeBytes = await invoke('get_file_size', { filePath: originalPath });
+          const fileSizeMB = fileSizeBytes / 1024 / 1024;
+          
+          // Preprocess if file is >50MB (fast conversion, enables streaming)
+          if (fileSizeMB > 50) {
+            filesToProcess.push({ video, originalPath, fileSizeMB });
+          } else {
+            filesToKeep.push(video);
+          }
+        } catch (error) {
+          console.warn(`⚠️ Could not check size for ${video.title}, keeping as-is:`, error);
+          filesToKeep.push(video);
+        }
+      }
+
+      // Process large files in background (in-place faststart - no new files, fast)
+      const processedFiles = await Promise.all(
+        filesToProcess.map(async ({ video, originalPath, fileSizeMB }) => {
+          try {
+            const fileName = originalPath.split(/[/\\]/).pop() || 'Unknown';
+            const extension = originalPath.split('.').pop()?.toLowerCase();
+            
+            // Only process MP4 files in-place (MKV/WebM would need conversion to MP4)
+            if (extension === 'mp4') {
+              // First check codec - H.265/HEVC needs conversion to H.264 for browser compatibility
+              try {
+                const debugInfo = await invoke('get_video_debug_info', { filePath: originalPath });
+                if (debugInfo.video_codec === 'hevc' || debugInfo.video_codec === 'h265') {
+                  console.log(`🔄 Converting H.265/HEVC to H.264 (${fileSizeMB.toFixed(1)}MB): ${fileName}`);
+                  console.log(`   This will take a few minutes - re-encoding required for browser compatibility`);
+                  
+                  await invoke('convert_hevc_to_h264', {
+                    inputPath: originalPath
+                  });
+                  
+                  console.log(`✅ Converted H.265 to H.264: ${fileName} (now browser-compatible)`);
+                  // File is now H.264, return it (faststart already added during conversion)
+                  return video;
+                } else {
+                  // Not H.265, just add faststart
+                  console.log(`⚡ Adding +faststart in-place (${fileSizeMB.toFixed(1)}MB, no new file): ${fileName}`);
+                  
+                  // In-place conversion: same file, just reorganizes structure
+                  // Fast: seconds even for GB files, no re-encoding, no extra disk space
+                  await invoke('add_faststart_in_place', {
+                    filePath: originalPath
+                  });
+
+                  console.log(`✅ Added +faststart in-place: ${fileName} (file is now streamable)`);
+                  
+                  // Return same video object (file path unchanged, but now has +faststart)
+                  return video;
+                }
+              } catch (codecError) {
+                console.warn(`⚠️ Could not check codec for ${fileName}, attempting faststart anyway:`, codecError);
+                // Fallback: try faststart anyway
+                await invoke('add_faststart_in_place', {
+                  filePath: originalPath
+                });
+                return video;
+              }
+            } else {
+              // Non-MP4 files: would need conversion to MP4, skip for now
+              console.log(`⚠️ Skipping ${fileName} - in-place faststart only works for MP4 files`);
+              return video;
+            }
+          } catch (error) {
+            console.error(`❌ Failed to add +faststart to ${video.title}:`, error);
+            // Keep original file if preprocessing fails
+            return video;
+          }
+        })
+      );
+
+      // Combine processed and unprocessed files
+      videoFiles = [...processedFiles, ...filesToKeep];
+      
+      if (filesToProcess.length > 0) {
+        const mp4Count = processedFiles.filter((v, i) => {
+          const ext = (filesToProcess[i].originalPath.split('.').pop() || '').toLowerCase();
+          return ext === 'mp4';
+        }).length;
+        console.log(`✅ +faststart added in-place to ${mp4Count} MP4 file(s) - files are now streamable`);
+      }
 
       // Find the playlist and add videos to it
       const playlistIndex = playlists.findIndex(p => p.id === playlistId);
@@ -3934,6 +4061,113 @@ export default function YouTubePlaylistPlayer() {
 
       console.log(`✅ Found ${videoFiles.length} video file(s)`);
 
+      // Automatically preprocess large files in the background (fast conversion)
+      // This enables streaming without memory explosion
+      const invoke = await getInvoke();
+      if (!invoke) {
+        throw new Error('Tauri invoke not available');
+      }
+
+      // Check file sizes and identify which need preprocessing
+      const filesToProcess = [];
+      const filesToKeep = [];
+      
+      for (const video of videoFiles) {
+        try {
+          const originalPath = video.filePath || video.id.replace('local:file://', '');
+          
+          // Check file size
+          const fileSizeBytes = await invoke('get_file_size', { filePath: originalPath });
+          const fileSizeMB = fileSizeBytes / 1024 / 1024;
+          
+          // Preprocess if file is >50MB (fast conversion, enables streaming)
+          if (fileSizeMB > 50) {
+            filesToProcess.push({ video, originalPath, fileSizeMB });
+          } else {
+            filesToKeep.push(video);
+          }
+        } catch (error) {
+          console.warn(`⚠️ Could not check size for ${video.title}, keeping as-is:`, error);
+          filesToKeep.push(video);
+        }
+      }
+
+      // Show progress if we have files to process
+      if (filesToProcess.length > 0) {
+        console.log(`⚡ Auto-adding +faststart to ${filesToProcess.length} large MP4 file(s) (in-place, no new files)...`);
+        // Don't block - runs in background, fast (seconds per file)
+      }
+
+      // Process large files in background (in-place faststart - no new files, fast)
+      const processedFiles = await Promise.all(
+        filesToProcess.map(async ({ video, originalPath, fileSizeMB }) => {
+          try {
+            const fileName = originalPath.split(/[/\\]/).pop() || 'Unknown';
+            const extension = originalPath.split('.').pop()?.toLowerCase();
+            
+            // Only process MP4 files in-place (MKV/WebM would need conversion to MP4)
+            if (extension === 'mp4') {
+              // First check codec - H.265/HEVC needs conversion to H.264 for browser compatibility
+              try {
+                const debugInfo = await invoke('get_video_debug_info', { filePath: originalPath });
+                if (debugInfo.video_codec === 'hevc' || debugInfo.video_codec === 'h265') {
+                  console.log(`🔄 Converting H.265/HEVC to H.264 (${fileSizeMB.toFixed(1)}MB): ${fileName}`);
+                  console.log(`   This will take a few minutes - re-encoding required for browser compatibility`);
+                  
+                  await invoke('convert_hevc_to_h264', {
+                    inputPath: originalPath
+                  });
+                  
+                  console.log(`✅ Converted H.265 to H.264: ${fileName} (now browser-compatible)`);
+                  // File is now H.264, return it (faststart already added during conversion)
+                  return video;
+                } else {
+                  // Not H.265, just add faststart
+                  console.log(`⚡ Adding +faststart in-place (${fileSizeMB.toFixed(1)}MB, no new file): ${fileName}`);
+                  
+                  // In-place conversion: same file, just reorganizes structure
+                  // Fast: seconds even for GB files, no re-encoding, no extra disk space
+                  await invoke('add_faststart_in_place', {
+                    filePath: originalPath
+                  });
+
+                  console.log(`✅ Added +faststart in-place: ${fileName} (file is now streamable)`);
+                  
+                  // Return same video object (file path unchanged, but now has +faststart)
+                  return video;
+                }
+              } catch (codecError) {
+                console.warn(`⚠️ Could not check codec for ${fileName}, attempting faststart anyway:`, codecError);
+                // Fallback: try faststart anyway
+                await invoke('add_faststart_in_place', {
+                  filePath: originalPath
+                });
+                return video;
+              }
+            } else {
+              // Non-MP4 files: would need conversion to MP4, skip for now
+              console.log(`⚠️ Skipping ${fileName} - in-place faststart only works for MP4 files`);
+              return video;
+            }
+          } catch (error) {
+            console.error(`❌ Failed to add +faststart to ${video.title}:`, error);
+            // Keep original file if preprocessing fails
+            return video;
+          }
+        })
+      );
+
+      // Combine processed and unprocessed files
+      videoFiles = [...processedFiles, ...filesToKeep];
+      
+      if (filesToProcess.length > 0) {
+        const mp4Count = processedFiles.filter((v, i) => {
+          const ext = (filesToProcess[i].originalPath.split('.').pop() || '').toLowerCase();
+          return ext === 'mp4';
+        }).length;
+        console.log(`✅ +faststart added in-place to ${mp4Count} MP4 file(s) - files are now streamable`);
+      }
+
       // Get name for playlist (folder name or "Local Videos")
       let playlistName = 'Local Videos';
       if (choice && videoFiles.length > 0) {
@@ -4040,6 +4274,99 @@ export default function YouTubePlaylistPlayer() {
     } catch (error) {
       console.error('❌ Add local files failed:', error);
       console.log(`Add local files failed: ${error.message || error}`);
+    }
+  };
+
+  const handleConvertMkvFolder = async () => {
+    if (!isTauri) {
+      alert('MKV conversion is only available in the desktop app.');
+      return;
+    }
+
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog');
+      
+      // Ask user to select folder with MKV files
+      const selected = await open({
+        multiple: false,
+        directory: true,
+        title: 'Select folder containing MKV files to convert'
+      });
+
+      if (!selected || typeof selected !== 'string') {
+        return; // User cancelled
+      }
+
+      // Ask user to choose conversion mode
+      const useFastMode = confirm(
+        `Choose conversion mode:\n\n` +
+        `✅ OK = FAST MODE (recommended)\n` +
+        `   - Copies streams without re-encoding\n` +
+        `   - Nearly instant (seconds per file)\n` +
+        `   - Works if video is H.264 and audio is AAC\n` +
+        `   - If it fails, try slow mode\n\n` +
+        `❌ Cancel = SLOW MODE\n` +
+        `   - Full re-encoding\n` +
+        `   - Takes much longer (minutes per file)\n` +
+        `   - Works with any codec\n\n` +
+        `Click OK for FAST mode, or Cancel for SLOW mode:`
+      );
+
+      // Confirm conversion
+      const modeText = useFastMode ? 'FAST (remux)' : 'SLOW (re-encode)';
+      const timeText = useFastMode ? 'seconds' : 'minutes';
+      const confirmMsg = `This will convert all MKV files in:\n\n${selected}\n\nto MP4 format using ${modeText} mode.\n\nConverted files will be saved in a "converted" subfolder.\n\nEstimated time: ${timeText} per file.\n\nContinue?`;
+      if (!confirm(confirmMsg)) {
+        return;
+      }
+
+      const invoke = await getInvoke();
+      if (!invoke) {
+        throw new Error('Tauri invoke not available');
+      }
+
+      // Show progress message
+      const progressMsg = 'Converting MKV files to MP4...\n\nThis may take several minutes depending on file sizes.\n\nPlease wait...';
+      alert(progressMsg);
+
+      console.log('🔄 Starting MKV to MP4 conversion for folder:', selected);
+      
+      // Call Rust command to convert all MKV files in folder
+      const result = await invoke('convert_mkv_folder_to_mp4', {
+        folderPath: selected,
+        outputFolder: null, // Use default "converted" subfolder
+        fastMode: useFastMode
+      });
+
+      console.log('✅ Conversion result:', result);
+
+      // Show results
+      const successCount = result.success || 0;
+      const errorCount = result.errors || 0;
+      const totalCount = result.total || 0;
+      const outputFolder = result.output_folder || 'converted subfolder';
+
+      let resultMsg = `Conversion complete!\n\n`;
+      resultMsg += `Total files: ${totalCount}\n`;
+      resultMsg += `Successfully converted: ${successCount}\n`;
+      resultMsg += `Errors: ${errorCount}\n\n`;
+      resultMsg += `Converted files saved to:\n${outputFolder}`;
+
+      if (errorCount > 0) {
+        resultMsg += `\n\nSome files failed to convert. Check console for details.`;
+      }
+
+      alert(resultMsg);
+
+      // Optionally open the output folder
+      if (successCount > 0 && confirm('Would you like to open the converted folder?')) {
+        const { shell } = await import('@tauri-apps/plugin-shell');
+        await shell.open(outputFolder);
+      }
+
+    } catch (error) {
+      console.error('❌ Error converting MKV folder:', error);
+      alert(`Failed to convert MKV files:\n\n${error.message || error}\n\nMake sure FFmpeg is installed and in your PATH.`);
     }
   };
 
@@ -5133,6 +5460,12 @@ export default function YouTubePlaylistPlayer() {
   };
 
   const destroyPlayer = () => {
+    // Cleanup blob URL when destroying player
+    if (window.currentVideoBlobUrl) {
+      URL.revokeObjectURL(window.currentVideoBlobUrl);
+      window.currentVideoBlobUrl = null;
+    }
+    
     if (playerRef.current && typeof playerRef.current.destroy === 'function') {
       try { playerRef.current.destroy(); } catch (error) { console.error("Error destroying YouTube player:", error); }
     }
@@ -5141,6 +5474,240 @@ export default function YouTubePlaylistPlayer() {
     setIsPlayerReady(false);
     setIsPlaying(false);
   };
+
+  // Comprehensive debug function - collects all video playback diagnostics
+  // Expose directly to window to avoid scope issues
+  if (typeof window !== 'undefined') {
+    window.getVideoDebugReport = function() {
+      // Access React component state via closure
+      var videoId = currentVideoId;
+      var video = localVideoRef.current;
+      var isTauriEnv = isTauri;
+      
+      // Return a promise to handle async operations
+      return new Promise(function(resolve, reject) {
+        // Use async IIFE to handle await
+        (function() {
+          var asyncFunc = async function() {
+            try {
+              if (!isLocalFile(videoId)) {
+                console.log("🔍 Debug: Current video is not a local file");
+                resolve(null);
+                return;
+              }
+
+              var filePath = getLocalFilePath(videoId);
+              if (!filePath) {
+                console.error("🔍 Debug: No file path available");
+                resolve(null);
+                return;
+              }
+
+            console.log("🔍 ========== COMPREHENSIVE VIDEO DEBUG REPORT ==========");
+            console.log("🔍 File:", filePath);
+            console.log("🔍 Video ID:", videoId);
+            console.log("");
+
+            // Helper functions using traditional syntax
+            function getVideoProp(prop, defaultValue) {
+              return video && video[prop] !== undefined ? video[prop] : defaultValue;
+            }
+            
+            var networkStates = ["EMPTY", "IDLE", "LOADING", "NO_SOURCE", "LOADED_METADATA", "LOADED_FIRST_FRAME", "LOADED"];
+            var readyStates = ["HAVE_NOTHING", "HAVE_METADATA", "HAVE_CURRENT_DATA", "HAVE_FUTURE_DATA", "HAVE_ENOUGH_DATA"];
+            var errorCodes = ["MEDIA_ERR_ABORTED", "MEDIA_ERR_NETWORK", "MEDIA_ERR_DECODE", "MEDIA_ERR_SRC_NOT_SUPPORTED"];
+            
+            var frontendInfo = {
+        videoElementExists: !!video,
+        videoSrc: getVideoProp('src', "N/A"),
+        videoCurrentSrc: getVideoProp('currentSrc', "N/A"),
+        videoNetworkState: getVideoProp('networkState', -1),
+        videoNetworkStateText: video && video.networkState !== undefined 
+          ? (networkStates[video.networkState] || "N/A")
+          : "N/A",
+        videoReadyState: getVideoProp('readyState', -1),
+        videoReadyStateText: video && video.readyState !== undefined
+          ? (readyStates[video.readyState] || "N/A")
+          : "N/A",
+        videoError: video && video.error ? {
+          code: video.error.code,
+          message: video.error.message || "No error message",
+          codeText: errorCodes[video.error.code - 1] || "UNKNOWN"
+        } : null,
+        videoDuration: getVideoProp('duration', NaN),
+        videoPaused: getVideoProp('paused', null),
+        videoMuted: getVideoProp('muted', null),
+        videoVolume: getVideoProp('volume', null),
+        videoWidth: getVideoProp('videoWidth', 0),
+        videoHeight: getVideoProp('videoHeight', 0),
+        videoBuffered: video && video.buffered ? {
+          length: video.buffered.length,
+          ranges: (function() {
+            var result = [];
+            for (var i = 0; i < video.buffered.length; i++) {
+              result.push({
+                start: video.buffered.start(i),
+                end: video.buffered.end(i)
+              });
+            }
+            return result;
+          })()
+        } : null,
+        videoSeekable: video && video.seekable ? {
+          length: video.seekable.length,
+          ranges: (function() {
+            var result = [];
+            for (var i = 0; i < video.seekable.length; i++) {
+              result.push({
+                start: video.seekable.start(i),
+                end: video.seekable.end(i)
+              });
+            }
+            return result;
+          })()
+        } : null,
+              isPlayerReady: isPlayerReady,
+              isPlaying: isPlaying,
+            };
+
+            console.log("🔍 ========== FRONTEND (VIDEO ELEMENT) STATE ==========");
+            console.log(JSON.stringify(frontendInfo, null, 2));
+            console.log("");
+
+            // Collect backend info via Tauri command
+            if (isTauriEnv) {
+              try {
+                var getInvokeFunc = getInvoke;
+                var invoke = await getInvokeFunc();
+                if (invoke) {
+                  console.log("🔍 ========== BACKEND (RUST) STATE ==========");
+                  var backendInfo = await invoke('get_video_debug_info', { filePath: filePath });
+                  console.log(JSON.stringify(backendInfo, null, 2));
+                  console.log("");
+
+                  // Combined analysis
+                  console.log("🔍 ========== DIAGNOSIS ==========");
+                  
+                  // Check server
+                  if (!backendInfo.server_running) {
+                    console.error("❌ ISSUE: Video server is not running!");
+                  } else {
+                    console.log("✅ Server running on port " + backendInfo.server_port);
+                  }
+
+                  // Check file
+                  if (!backendInfo.file_exists) {
+                    console.error("❌ ISSUE: File does not exist!");
+                  } else {
+                    var fileSizeMB = (backendInfo.file_size / 1024 / 1024).toFixed(2);
+                    console.log("✅ File exists (" + fileSizeMB + " MB)");
+                  }
+
+                  if (!backendInfo.file_readable) {
+                    console.error("❌ ISSUE: File exists but cannot be read (may be locked)!");
+                  } else {
+                    console.log("✅ File is readable");
+                  }
+
+                  // Check FFmpeg
+                  if (!backendInfo.ffmpeg_available) {
+                    console.error("❌ ISSUE: FFmpeg is not available!");
+                  } else {
+                    var ffmpegVersion = backendInfo.ffmpeg_version || "version unknown";
+                    console.log("✅ FFmpeg available: " + ffmpegVersion);
+                  }
+
+                  if (!backendInfo.ffprobe_available) {
+                    console.warn("⚠️ FFprobe not available (detailed file info unavailable)");
+                  } else {
+                    console.log("✅ FFprobe available");
+                  }
+
+                  // Check moov atom
+                  if (backendInfo.moov_at_start === false) {
+                    console.error("❌ CRITICAL ISSUE: Moov atom is at the END of the file!");
+                    console.error("   → This prevents streaming - browser needs metadata at start");
+                    console.error("   → Solution: Run add_faststart_in_place() on this file");
+                  } else if (backendInfo.moov_at_start === true) {
+                    console.log("✅ Moov atom is at the start (file is streamable)");
+                  } else {
+                    console.warn("⚠️ Could not determine moov atom location");
+                  }
+
+                  // Check codecs
+                  if (backendInfo.video_codec) {
+                    console.log("✅ Video codec: " + backendInfo.video_codec);
+                  }
+                  if (backendInfo.audio_codec) {
+                    console.log("✅ Audio codec: " + backendInfo.audio_codec);
+                  }
+
+                  // Check video element state
+                  if (frontendInfo.videoError) {
+                    console.error("❌ VIDEO ELEMENT ERROR: " + frontendInfo.videoError.codeText + " (" + frontendInfo.videoError.code + ")");
+                    console.error("   Message: " + (frontendInfo.videoError.message || "No message"));
+                  }
+
+                  if (frontendInfo.videoReadyState === 0) {
+                    console.error("❌ VIDEO READY STATE: HAVE_NOTHING - video has no information");
+                    if (backendInfo.moov_at_start === false) {
+                      console.error("   → Likely cause: Moov atom at end of file");
+                    }
+                  }
+
+                  if (frontendInfo.videoNetworkState === 3) {
+                    console.error("❌ VIDEO NETWORK STATE: NO_SOURCE - no video source loaded");
+                  }
+
+                  // Check if using streaming URL
+                  if (frontendInfo.videoSrc && frontendInfo.videoSrc.indexOf('127.0.0.1') !== -1) {
+                    console.log("✅ Using streaming URL: " + frontendInfo.videoSrc);
+                    if (!backendInfo.server_running) {
+                      console.error("   → But server is not running! This is a problem.");
+                    }
+                  } else if (frontendInfo.videoSrc && frontendInfo.videoSrc.indexOf('blob:') === 0) {
+                    console.log("✅ Using blob URL (small file, loaded into memory)");
+                  } else {
+                    console.warn("⚠️ Video src: " + (frontendInfo.videoSrc || "Not set"));
+                  }
+
+                  // List all errors
+                  if (backendInfo.errors && backendInfo.errors.length > 0) {
+                    console.log("");
+                    console.error("❌ BACKEND ERRORS:");
+                    for (var i = 0; i < backendInfo.errors.length; i++) {
+                      console.error("   - " + backendInfo.errors[i]);
+                    }
+                  }
+
+                  console.log("");
+                  console.log("🔍 ========== END DEBUG REPORT ==========");
+
+                  // Return combined info for programmatic access
+                  resolve({
+                    frontend: frontendInfo,
+                    backend: backendInfo,
+                    timestamp: new Date().toISOString()
+                  });
+                }
+              } catch (error) {
+                console.error("❌ Failed to get backend debug info:", error);
+                reject(error);
+              }
+            } else {
+              console.warn("⚠️ Not in Tauri environment - backend debug info unavailable");
+              resolve({ frontend: frontendInfo, backend: null, timestamp: new Date().toISOString() });
+            }
+            } catch (error) {
+              console.error("❌ Debug function error:", error);
+              reject(error);
+            }
+          };
+          asyncFunc().then(resolve).catch(reject);
+        })();
+      });
+    };
+  }
 
   const initializePlayer = async () => {
     if (!currentVideoId || !playerContainerRef.current) {
@@ -5168,47 +5735,229 @@ export default function YouTubePlaylistPlayer() {
       video.autoplay = true;
       // Local videos always start at 0:00 - simple system
       
-      // Lazy loading: Only read file and create blob URL when video is actually selected to play
-      // This prevents loading 6GB+ of video files into memory at once
+      // Smart approach: Use streaming for large files/web-ready files, blob URLs for small files
+      // This prevents memory explosion on large files while keeping reliability for small ones
       try {
         if (isTauri) {
-          const { readFile } = await import('@tauri-apps/plugin-fs');
-          console.log("📁 Lazy loading video file:", filePath);
+          const isWebReady = filePath.includes('.webready.mp4');
           
-          // Show loading state
-          setIsPlayerReady(false);
+          // Check file size to decide between streaming and blob URL
+          const { invoke } = await import('@tauri-apps/api/core');
+          let fileSizeMB = 0;
+          let useStreaming = false;
           
-          // Lazy loading: Read file as binary (Uint8Array) - Tauri v2 readFile returns binary by default
-          // This only happens when user selects this specific video to play (not when adding to playlist)
-          // For large files (500MB+), this may take a few seconds - that's expected
-          console.log("⏳ Loading video file into memory (this may take a moment for large files)...");
-          const fileData = await readFile(filePath);
-          console.log("✅ File read successfully, size:", (fileData.length / 1024 / 1024).toFixed(2), "MB");
-          
-          // Detect MIME type from file extension
-          const extension = filePath.split('.').pop()?.toLowerCase();
-          let mimeType = 'video/mp4'; // default
-          const mimeTypes = {
-            'mp4': 'video/mp4',
-            'webm': 'video/webm',
-            'mkv': 'video/x-matroska',
-            'avi': 'video/x-msvideo',
-            'mov': 'video/quicktime',
-            'wmv': 'video/x-ms-wmv',
-            'flv': 'video/x-flv',
-            'm4v': 'video/x-m4v'
-          };
-          // Note: MKV files may not extract thumbnails properly, but playback should work
-          if (extension && mimeTypes[extension]) {
-            mimeType = mimeTypes[extension];
+          try {
+            const fileSizeBytes = await invoke('get_file_size', { filePath });
+            fileSizeMB = fileSizeBytes / 1024 / 1024;
+            console.log("📊 File size:", fileSizeMB.toFixed(2), "MB");
+            
+            // Use streaming for:
+            // 1. Web-ready files (always - they're optimized for streaming)
+            // 2. Large files (>100MB) - prevents memory explosion
+            // 3. MP4 files >50MB (MP4 can stream even without +faststart, though not as efficiently)
+            const extension = filePath.split('.').pop()?.toLowerCase();
+            const isMP4 = extension === 'mp4';
+            
+            useStreaming = isWebReady || fileSizeMB > 100 || (isMP4 && fileSizeMB > 50);
+          } catch (sizeError) {
+            console.warn("⚠️ Could not get file size, defaulting to blob URL:", sizeError);
+            useStreaming = false;
           }
           
-          // Create blob from binary data
-          const blob = new Blob([fileData], { type: mimeType });
-          const blobUrl = URL.createObjectURL(blob);
-          console.log("📁 Created blob URL (lazy loaded):", blobUrl);
-          
-          video.src = blobUrl;
+          if (useStreaming) {
+            // Use mini HTTP server for streaming - professional solution!
+            console.log("🌐 [DEBUG] Loading file via mini HTTP server (no memory load):", filePath);
+            console.log("🌐 [DEBUG] File size:", fileSizeMB.toFixed(2), "MB, isWebReady:", isWebReady);
+            setIsPlayerReady(false);
+            
+            // Initialize video server if not already running
+            const invoke = await getInvoke();
+            if (!invoke) {
+              console.error("❌ [DEBUG] Tauri invoke not available");
+              throw new Error('Tauri invoke not available');
+            }
+            
+            // Start server and get port (cached, so it's fast after first call)
+            let port;
+            try {
+              port = await invoke('start_video_server');
+              console.log("✅ [DEBUG] Video server running on port:", port);
+            } catch (serverError) {
+              console.error("❌ [DEBUG] Failed to start video server:", serverError);
+              throw new Error(`Failed to start video server: ${serverError.message || serverError}`);
+            }
+            
+            // Create HTTP URL with encoded file path
+            const encodedPath = encodeURIComponent(filePath);
+            const streamUrl = `http://127.0.0.1:${port}/video/${encodedPath}`;
+            console.log("✅ [DEBUG] Using HTTP streaming URL:", streamUrl);
+            console.log("✅ [DEBUG] Encoded path:", encodedPath);
+            
+            // Add error handlers for debugging
+            video.addEventListener('error', (e) => {
+              console.error("❌ [DEBUG] Video element error:", e);
+              console.error("❌ [DEBUG] Video error code:", video.error?.code);
+              console.error("❌ [DEBUG] Video error message:", video.error?.message);
+              console.error("❌ [DEBUG] Video src:", video.src);
+              console.error("❌ [DEBUG] Video currentSrc:", video.currentSrc);
+              console.error("❌ [DEBUG] Video networkState:", video.networkState);
+              console.error("❌ [DEBUG] Video readyState:", video.readyState);
+              console.error("❌ [DEBUG] Video videoWidth:", video.videoWidth, "videoHeight:", video.videoHeight);
+            });
+            
+            video.addEventListener('loadstart', () => {
+              console.log("🔄 [DEBUG] Video loadstart - beginning to load");
+            });
+            
+            video.addEventListener('loadedmetadata', async () => {
+              console.log("✅ [DEBUG] Video metadata loaded - duration:", video.duration);
+              console.log("✅ [DEBUG] Video actual src:", video.currentSrc);
+              console.log("✅ [DEBUG] Video videoWidth:", video.videoWidth, "videoHeight:", video.videoHeight);
+              console.log("✅ [DEBUG] Video readyState:", video.readyState);
+              console.log("✅ [DEBUG] Video networkState:", video.networkState);
+              if (video.videoWidth === 0 && video.videoHeight === 0) {
+                console.error("⚠️ [DEBUG] WARNING: Video has no dimensions - video track may not be loading!");
+                console.error("⚠️ [DEBUG] This usually means the video codec is not supported by the browser.");
+                console.error("⚠️ [DEBUG] Checking video codec...");
+                
+                // Check codec using Tauri command
+                try {
+                  const invoke = await getInvoke();
+                  if (invoke) {
+                    const debugInfo = await invoke('get_video_debug_info', { filePath });
+                    if (debugInfo.video_codec) {
+                      console.error("⚠️ [DEBUG] Video codec:", debugInfo.video_codec);
+                      if (debugInfo.video_codec === 'hevc' || debugInfo.video_codec === 'h265') {
+                        console.error("❌ [DEBUG] PROBLEM: H.265/HEVC codec is NOT supported in most browsers!");
+                        console.error("❌ [DEBUG] Solution: Convert video to H.264 (AVC) codec");
+                      } else if (debugInfo.video_codec !== 'h264' && debugInfo.video_codec !== 'avc') {
+                        console.error("⚠️ [DEBUG] Video codec may not be supported:", debugInfo.video_codec);
+                        console.error("⚠️ [DEBUG] Browsers typically only support: H.264 (AVC), VP8, VP9");
+                      }
+                    }
+                    if (debugInfo.audio_codec) {
+                      console.log("✅ [DEBUG] Audio codec:", debugInfo.audio_codec, "(working - that's why you hear audio)");
+                    }
+                  }
+                } catch (error) {
+                  console.error("❌ [DEBUG] Failed to check codec:", error);
+                }
+              }
+              setIsPlayerReady(true);
+            });
+            
+            video.addEventListener('canplay', () => {
+              console.log("✅ [DEBUG] Video can play");
+              setIsPlayerReady(true);
+            });
+            
+            video.addEventListener('canplaythrough', () => {
+              console.log("✅ [DEBUG] Video can play through");
+              setIsPlayerReady(true);
+            });
+            
+            // Add timeout to detect if metadata never loads (moov atom at end issue)
+            let metadataTimeout;
+            let faststartAttempted = false;
+            
+            const checkMetadata = async () => {
+              if (video.readyState === 0 && video.networkState !== 3 && !faststartAttempted) {
+                faststartAttempted = true;
+                console.error("❌ [DEBUG] Video metadata timeout - file may need +faststart (moov atom at end)");
+                console.error("❌ [DEBUG] File structure issue: MP4 metadata (moov atom) is likely at the end of the file");
+                console.error("❌ [DEBUG] Attempting to add +faststart automatically...");
+                
+                // Try to add +faststart automatically
+                try {
+                  const invoke = await getInvoke();
+                  if (invoke) {
+                    console.log("🔄 [FASTSTART] Processing file (this takes a few seconds)...");
+                    await invoke('add_faststart_in_place', { filePath });
+                    console.log("✅ [FASTSTART] Success! File is now streamable. Reloading video...");
+                    
+                    // Force a complete reload - clear src and set it again
+                    video.src = '';
+                    video.load();
+                    
+                    // Re-initialize the player with the same file (now with faststart)
+                    setTimeout(() => {
+                      initializePlayer();
+                    }, 500);
+                  }
+                } catch (faststartError) {
+                  console.error("❌ [FASTSTART] Failed:", faststartError);
+                  alert("Large video file cannot stream - metadata is at the end of the file.\n\nAutomatic fix failed:\n" + (faststartError.message || faststartError) + "\n\nThe file may be locked by another process, or FFmpeg may not be available.");
+                }
+              }
+            };
+            
+            metadataTimeout = setTimeout(checkMetadata, 5000); // 5 second timeout
+            
+            video.addEventListener('loadedmetadata', () => {
+              clearTimeout(metadataTimeout);
+            });
+            
+            video.addEventListener('error', () => {
+              clearTimeout(metadataTimeout);
+              // Also try faststart on error
+              if (!faststartAttempted) {
+                checkMetadata();
+              }
+            });
+            
+            // Use <source> element for better codec detection
+            // Clear any existing sources first
+            while (video.firstChild) {
+              video.removeChild(video.firstChild);
+            }
+            
+            // Detect MIME type from file extension
+            const extension = filePath.split('.').pop()?.toLowerCase();
+            const mimeType = extension === 'mp4' ? 'video/mp4' : 
+                            extension === 'webm' ? 'video/webm' :
+                            extension === 'mkv' ? 'video/x-matroska' :
+                            extension === 'mov' ? 'video/quicktime' : 'video/mp4';
+            
+            const source = document.createElement('source');
+            source.src = streamUrl;
+            source.type = mimeType;
+            video.appendChild(source);
+            
+            // Force video element to reload with new source
+            video.load();
+            
+            console.log("✅ [DEBUG] Video src set to:", streamUrl);
+            console.log("✅ [DEBUG] MIME type:", mimeType);
+          } else {
+            // Small file: Use blob URL (works reliably, acceptable memory usage)
+            console.log("📁 Loading small file as blob URL:", filePath);
+            setIsPlayerReady(false);
+            
+            // Read file and create blob URL
+            const { readFile } = await import('@tauri-apps/plugin-fs');
+            const fileData = await readFile(filePath);
+            console.log("✅ File read successfully, size:", fileSizeMB.toFixed(2), "MB");
+            
+            // Detect MIME type from file extension
+            const extension = filePath.split('.').pop()?.toLowerCase();
+            const mimeTypes = {
+              'mp4': 'video/mp4',
+              'webm': 'video/webm',
+              'mkv': 'video/x-matroska',
+              'avi': 'video/x-msvideo',
+              'mov': 'video/quicktime',
+              'wmv': 'video/x-ms-wmv',
+              'flv': 'video/x-flv',
+              'm4v': 'video/x-m4v'
+            };
+            const mimeType = mimeTypes[extension] || 'video/mp4';
+            
+            // Create blob from binary data
+            const blob = new Blob([fileData], { type: mimeType });
+            const blobUrl = URL.createObjectURL(blob);
+            console.log("✅ Created blob URL with MIME type:", mimeType);
+            video.src = blobUrl;
+          }
           
           // Initialize thumbnail Map if needed
           if (!window.localVideoThumbnails) {
@@ -5477,36 +6226,29 @@ export default function YouTubePlaylistPlayer() {
             }
           });
           
-          // Clean up on unload
-          const cleanup = () => {
-            if (blobUrl) {
-              URL.revokeObjectURL(blobUrl);
-              console.log("🧹 Cleaned up blob URL");
-            }
-          };
-          window.addEventListener('beforeunload', cleanup);
         } else {
           // Fallback for non-Tauri (shouldn't happen, but just in case)
           video.src = `file:///${filePath}`;
         }
+        
+        // Store blob URL for cleanup when video changes (streaming URLs don't need cleanup)
+        if (video.src && video.src.startsWith('blob:')) {
+          // Store reference for cleanup later (when switching to different video)
+          if (!window.currentVideoBlobUrl) {
+            window.currentVideoBlobUrl = null;
+          }
+          // Clean up previous blob URL if it exists
+          if (window.currentVideoBlobUrl && window.currentVideoBlobUrl !== video.src) {
+            URL.revokeObjectURL(window.currentVideoBlobUrl);
+          }
+          window.currentVideoBlobUrl = video.src;
+        }
       } catch (error) {
-        console.error("❌ Error reading file:", error);
+        console.error("❌ Error setting up video stream:", error);
         console.error("❌ Error details:", error.message, error.stack);
         console.error("❌ File path was:", filePath);
         setIsPlayerReady(false);
-        
-        // Try convertFileSrc as fallback
-        try {
-          if (isTauri) {
-            const { convertFileSrc } = await import('@tauri-apps/api/core');
-            const convertedSrc = convertFileSrc(filePath, 'asset');
-            console.log("📁 Fallback: Using convertFileSrc:", convertedSrc);
-            video.src = convertedSrc;
-          }
-        } catch (fallbackError) {
-          console.error("❌ Fallback also failed:", fallbackError);
-          alert(`Failed to load video file. The file may be too large or corrupted.\n\nFile: ${filePath.split(/[/\\]/).pop()}\n\nError: ${error.message || error}`);
-        }
+        alert(`Failed to load video file. The file may be corrupted or inaccessible.\n\nFile: ${filePath.split(/[/\\]/).pop()}\n\nError: ${error.message || error}`);
       }
 
       // Local videos always start at 0:00 - set it once when metadata loads
@@ -7262,6 +8004,16 @@ export default function YouTubePlaylistPlayer() {
                         className="w-full text-left px-3 py-2 text-red-400 hover:bg-red-500/20 rounded text-sm"
                       >
                         Reset Configuration
+                      </button>
+                      <div className="border-t border-white/10 my-2"></div>
+                      <button
+                        onClick={async () => {
+                          setShowSettingsMenu(false);
+                          await handleConvertMkvFolder();
+                        }}
+                        className="w-full text-left px-3 py-2 text-white hover:bg-white/10 rounded text-sm"
+                      >
+                        Convert MKV Folder to MP4
                       </button>
                     </div>
                   )}

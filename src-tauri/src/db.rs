@@ -1343,6 +1343,20 @@ pub fn get_thumbnail_path_command(video_id: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+pub fn get_file_size(file_path: String) -> Result<u64, String> {
+    let path = PathBuf::from(&file_path);
+    
+    if !path.exists() {
+        return Err(format!("File does not exist: {}", file_path));
+    }
+    
+    let metadata = std::fs::metadata(&path)
+        .map_err(|e| format!("Failed to get file metadata: {}", e))?;
+    
+    Ok(metadata.len())
+}
+
+#[tauri::command]
 pub fn get_thumbnail_data_url(video_id: String) -> Result<String, String> {
     let path = get_thumbnail_path(&video_id)?;
     
@@ -1475,5 +1489,514 @@ pub fn extract_video_thumbnail(video_path: String, video_id: String) -> Result<S
     
     // If FFmpeg extraction failed, return error
     Err(format!("Failed to extract thumbnail using FFmpeg. Make sure FFmpeg is installed and in PATH."))
+}
+
+#[tauri::command]
+pub fn add_faststart_in_place(file_path: String) -> Result<String, String> {
+    eprintln!("⚡ Adding +faststart in-place (no new file): {}", file_path);
+    
+    use std::process::Command;
+    
+    let path = PathBuf::from(&file_path);
+    if !path.exists() {
+        return Err(format!("File does not exist: {}", file_path));
+    }
+    
+    let path_str = path.to_string_lossy().to_string();
+    
+    // First, check if file is valid by trying to probe it
+    eprintln!("🔍 [FASTSTART] Checking if file is valid MP4...");
+    
+    // Check file size first - if it's 0 or very small, it's definitely incomplete
+    let file_size = match std::fs::metadata(&path) {
+        Ok(meta) => meta.len(),
+        Err(e) => {
+            return Err(format!("Cannot read file metadata: {}. File may not exist or be inaccessible.", e));
+        }
+    };
+    
+    if file_size == 0 {
+        return Err("File is empty (0 bytes). File may be incomplete or corrupted.".to_string());
+    }
+    
+    if file_size < 1024 {
+        eprintln!("⚠️ [FASTSTART] File is very small ({} bytes) - may be incomplete", file_size);
+    }
+    
+    let probe_output = Command::new("ffprobe")
+        .args([
+            "-v", "error",
+            "-show_format",
+            "-show_streams",
+            &path_str,
+        ])
+        .output();
+    
+    let file_is_valid = match probe_output {
+        Ok(output) => {
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                eprintln!("⚠️ [FASTSTART] ffprobe failed: {}", stderr.trim());
+            }
+            output.status.success()
+        },
+        Err(e) => {
+            eprintln!("⚠️ [FASTSTART] ffprobe error: {}", e);
+            false
+        }
+    };
+    
+    if !file_is_valid {
+        eprintln!("⚠️ [FASTSTART] File appears corrupted or incomplete (moov atom not found)");
+        eprintln!("   File size: {} bytes ({:.2} MB)", file_size, file_size as f64 / 1024.0 / 1024.0);
+        eprintln!("   Attempting to repair file first...");
+        eprintln!("   NOTE: If this file plays in VLC/Media Player, it may just need repair.");
+        eprintln!("   If it doesn't play anywhere, the file is corrupted and needs re-downloading.");
+        
+        // Try to repair the file by remuxing it
+        // Use .mp4 extension so FFmpeg knows the format
+        let temp_repair = path.with_extension("mp4.repair");
+        let temp_repair_str = temp_repair.to_string_lossy().to_string();
+        
+        // Use raw path for Windows to handle special characters better
+        let repair_output = Command::new("ffmpeg")
+            .args([
+                "-v", "error",
+                "-err_detect", "ignore_err",
+                "-i", &path_str,
+                "-c", "copy",  // Copy streams, no re-encode
+                "-f", "mp4",  // Explicitly specify MP4 format
+                "-movflags", "+faststart",  // Add faststart during repair
+                "-y",
+                &temp_repair_str,
+            ])
+            .output();
+        
+        match repair_output {
+            Ok(output) if output.status.success() => {
+                // Replace original with repaired file
+                match std::fs::rename(&temp_repair, &path) {
+                    Ok(_) => {
+                        eprintln!("✅ [FASTSTART] File repaired and faststart added!");
+                        return Ok(file_path);
+                    }
+                    Err(e) => {
+                        let _ = std::fs::remove_file(&temp_repair);
+                        return Err(format!("File was repaired but could not replace original: {}. The repaired file was saved as: {}", e, temp_repair_str));
+                    }
+                }
+            }
+            Ok(output) => {
+                let _ = std::fs::remove_file(&temp_repair);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(format!("File appears corrupted and could not be repaired.\n\nFFmpeg error: {}\n\nThe file may be:\n- Still downloading/incomplete\n- Severely corrupted\n- Not a valid MP4 file\n\nTry re-downloading or checking the file with another tool.", stderr.trim()));
+            }
+            Err(e) => {
+                return Err(format!("Failed to attempt file repair: {}. The file appears corrupted (moov atom not found).", e));
+            }
+        }
+    }
+    
+    // File is valid, proceed with faststart
+    // NOTE: FFmpeg on Windows refuses to overwrite the same file (even with -y)
+    // So we MUST use temp file approach - write to temp, then rename
+    eprintln!("🔄 [FASTSTART] File is valid, processing with temp file approach...");
+    eprintln!("   (FFmpeg requires temp file on Windows - can't overwrite same file)");
+    
+    // Use .mp4.tmp extension so FFmpeg knows it's MP4 format
+    let temp_path = path.with_extension("mp4.tmp");
+    let temp_file = temp_path.to_string_lossy().to_string();
+    
+    // Try normal approach first
+    let temp_output = Command::new("ffmpeg")
+        .args([
+            "-v", "error",
+            "-i", &path_str,
+            "-c", "copy",
+            "-f", "mp4",  // Explicitly specify MP4 format
+            "-movflags", "+faststart",
+            "-y",
+            &temp_file,
+        ])
+        .output()
+        .map_err(|e| format!("FFmpeg temp file approach failed: {}", e))?;
+    
+    if temp_output.status.success() {
+        // Replace original with temp file (atomic operation)
+        std::fs::rename(&temp_path, &path)
+            .map_err(|e| {
+                let _ = std::fs::remove_file(&temp_path);
+                format!("Failed to replace original file: {}", e)
+            })?;
+        eprintln!("✅ [FASTSTART] Success! (moov atom moved to front)");
+        return Ok(file_path);
+    }
+    
+    // If normal approach failed, try with ignore_err (for problematic files)
+    let stderr = String::from_utf8_lossy(&temp_output.stderr);
+    let exit_code = temp_output.status.code().unwrap_or(-1);
+    eprintln!("⚠️ [FASTSTART] Normal approach failed (code {}), trying with ignore_err flag...", exit_code);
+    eprintln!("   Error: {}", stderr.trim());
+    
+    // Clean up failed temp file
+    let _ = std::fs::remove_file(&temp_path);
+    
+    let repair_output = Command::new("ffmpeg")
+        .args([
+            "-v", "error",
+            "-err_detect", "ignore_err",  // Grok's magic flag for problematic files
+            "-i", &path_str,
+            "-c", "copy",
+            "-f", "mp4",  // Explicitly specify MP4 format
+            "-movflags", "+faststart",
+            "-y",
+            &temp_file,
+        ])
+        .output()
+        .map_err(|e| format!("FFmpeg ignore_err approach failed: {}", e))?;
+    
+    if repair_output.status.success() {
+        // Replace original with temp file (atomic operation)
+        std::fs::rename(&temp_path, &path)
+            .map_err(|e| {
+                let _ = std::fs::remove_file(&temp_path);
+                format!("Failed to replace original file: {}", e)
+            })?;
+        eprintln!("✅ [FASTSTART] Success with ignore_err flag! (handled problematic subtitles/attachments)");
+        return Ok(file_path);
+    }
+    
+    // Both approaches failed
+    let _ = std::fs::remove_file(&temp_path);
+    let repair_stderr = String::from_utf8_lossy(&repair_output.stderr);
+    let repair_code = repair_output.status.code().unwrap_or(-1);
+    
+    eprintln!("❌ [FASTSTART] All strategies failed!");
+    eprintln!("   Normal temp file (code {}): {}", exit_code, stderr.trim());
+    eprintln!("   Ignore_err temp file (code {}): {}", repair_code, repair_stderr.trim());
+    
+    Err(format!(
+        "Faststart failed on all strategies.\n\
+        File: {}\n\
+        Normal approach (code {}): {}\n\
+        Ignore_err approach (code {}): {}\n\
+        \n\
+        The file may be locked by another process, or have unsupported codecs.\n\
+        Try closing any media players that might have the file open.",
+        file_path,
+        exit_code, stderr.trim(),
+        repair_code, repair_stderr.trim()
+    ))
+}
+
+#[tauri::command]
+pub fn convert_hevc_to_h264(input_path: String) -> Result<String, String> {
+    eprintln!("🔄 Converting H.265/HEVC to H.264 (browser-compatible): {}", input_path);
+    
+    use std::process::Command;
+    
+    let path = PathBuf::from(&input_path);
+    if !path.exists() {
+        return Err(format!("File does not exist: {}", input_path));
+    }
+    
+    // Create temp file for conversion (will replace original after)
+    let temp_path = path.with_extension("h264.tmp");
+    let temp_file = temp_path.to_string_lossy().to_string();
+    let path_str = path.to_string_lossy().to_string();
+    
+    // Convert H.265 to H.264 with AAC audio
+    // This is slower (re-encoding required) but necessary for browser compatibility
+    let convert = Command::new("ffmpeg")
+        .args([
+            "-v", "error",
+            "-i", &path_str,
+            "-c:v", "libx264",      // Convert to H.264
+            "-preset", "fast",       // Balance speed/quality
+            "-crf", "23",            // Good quality (near-lossless)
+            "-c:a", "aac",          // Convert audio to AAC
+            "-b:a", "192k",         // Audio bitrate
+            "-f", "mp4",            // Explicitly specify MP4 format
+            "-movflags", "+faststart",  // Add faststart for streaming
+            "-y",
+            &temp_file,
+        ])
+        .output()
+        .map_err(|e| format!("Failed to execute FFmpeg: {}. Make sure FFmpeg is installed and in PATH.", e))?;
+    
+    if !convert.status.success() {
+        let _ = std::fs::remove_file(&temp_path);
+        let stderr = String::from_utf8_lossy(&convert.stderr);
+        return Err(format!("H.265 to H.264 conversion failed: {}", stderr.trim()));
+    }
+    
+    // Replace original with converted file
+    std::fs::rename(&temp_path, &path)
+        .map_err(|e| {
+            let _ = std::fs::remove_file(&temp_path);
+            format!("Failed to replace original file: {}", e)
+        })?;
+    
+    eprintln!("✅ Successfully converted H.265 to H.264: {}", input_path);
+    Ok(input_path)
+}
+
+#[tauri::command]
+pub fn make_video_web_ready(input_path: String, output_path: String) -> Result<String, String> {
+    eprintln!("🌐 Making video web-ready: {} -> {}", input_path, output_path);
+    
+    use std::process::Command;
+    
+    let input = PathBuf::from(&input_path);
+    if !input.exists() {
+        return Err(format!("Input file does not exist: {}", input_path));
+    }
+    
+    // Check if output directory exists, create if not
+    let output = PathBuf::from(&output_path);
+    if let Some(parent) = output.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create output directory: {}", e))?;
+    }
+    
+    // Industry-standard web-ready conversion:
+    // Try to copy video first (fast), but if codec is incompatible, convert to H.264
+    // -c:v copy: Preserve original video (zero re-encoding, fast) - but only if browser-compatible
+    // -c:v libx264 -profile:v baseline: Convert to H.264 baseline (universally supported, but slower)
+    // -c:a aac: Convert audio to AAC (universally supported by browsers)
+    // -b:a 192k: Audio bitrate (good quality, reasonable size)
+    // -movflags +faststart: Move metadata to beginning (enables streaming/progressive playback)
+    // This is what Plex, Jellyfin, Stremio, Cloudflare Stream use
+    
+    // First, try fast mode (copy video codec) - works if original is H.264
+    let mut convert = Command::new("ffmpeg");
+    convert
+        .arg("-i")
+        .arg(&input_path)
+        .arg("-c:v")
+        .arg("copy")        // Try copying video stream first (fast!)
+        .arg("-c:a")
+        .arg("aac")         // Convert audio to AAC (browser-compatible)
+        .arg("-b:a")
+        .arg("192k")        // Audio bitrate
+        .arg("-movflags")
+        .arg("+faststart")  // Move moov atom to beginning (enables streaming)
+        .arg("-y")          // Overwrite output
+        .arg(&output_path);
+    
+    // Hide output on Windows
+    #[cfg(windows)]
+    {
+        convert.stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+    }
+    
+    let status = convert.status()
+        .map_err(|e| format!("Failed to execute FFmpeg: {}. Make sure FFmpeg is installed and in PATH.", e))?;
+    
+    if !status.success() {
+        // Fast mode failed - video codec might not be copyable to MP4
+        // Try converting video to H.264 baseline (universally supported, but slower)
+        eprintln!("⚠️ Fast mode failed, trying H.264 conversion (slower but guaranteed compatibility)");
+        
+        let mut convert_h264 = Command::new("ffmpeg");
+        convert_h264
+            .arg("-i")
+            .arg(&input_path)
+            .arg("-c:v")
+            .arg("libx264")      // Convert to H.264 (browser-compatible)
+            .arg("-profile:v")
+            .arg("baseline")     // Baseline profile (maximum compatibility)
+            .arg("-preset")
+            .arg("veryfast")     // Fast encoding preset
+            .arg("-crf")
+            .arg("23")           // Quality setting
+            .arg("-c:a")
+            .arg("aac")          // Convert audio to AAC
+            .arg("-b:a")
+            .arg("192k")         // Audio bitrate
+            .arg("-movflags")
+            .arg("+faststart")   // Move moov atom to beginning
+            .arg("-y")           // Overwrite output
+            .arg(&output_path);
+        
+        #[cfg(windows)]
+        {
+            convert_h264.stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null());
+        }
+        
+        let status_h264 = convert_h264.status()
+            .map_err(|e| format!("Failed to execute FFmpeg H.264 conversion: {}. Make sure FFmpeg is installed and in PATH.", e))?;
+        
+        if !status_h264.success() {
+            return Err(format!("FFmpeg conversion failed (both fast and H.264 modes). Exit code: {:?}", status_h264.code()));
+        }
+        
+        eprintln!("✅ Successfully made web-ready with H.264 conversion: {}", output_path);
+        Ok(output_path)
+    } else {
+        eprintln!("✅ Successfully made web-ready (fast mode): {}", output_path);
+        Ok(output_path)
+    }
+}
+
+#[tauri::command]
+pub fn convert_mkv_to_mp4(input_path: String, output_path: String, fast_mode: Option<bool>) -> Result<String, String> {
+    eprintln!("🔄 Converting MKV to MP4: {} -> {} (fast_mode: {:?})", input_path, output_path, fast_mode);
+    
+    use std::process::Command;
+    
+    let input = PathBuf::from(&input_path);
+    if !input.exists() {
+        return Err(format!("Input file does not exist: {}", input_path));
+    }
+    
+    // Check if output directory exists, create if not
+    let output = PathBuf::from(&output_path);
+    if let Some(parent) = output.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create output directory: {}", e))?;
+    }
+    
+    let use_fast_mode = fast_mode.unwrap_or(true); // Default to fast mode
+    
+    let mut convert = Command::new("ffmpeg");
+    convert.arg("-i").arg(&input_path);
+    
+    if use_fast_mode {
+        // FAST MODE: Remux (copy streams) - nearly instant if codecs are compatible
+        // This copies video/audio streams without re-encoding
+        // Works if video is H.264 and audio is AAC (most common case)
+        eprintln!("⚡ Using FAST mode (remux/copy streams)");
+        convert
+            .arg("-c:v")
+            .arg("copy")  // Copy video stream (no re-encoding)
+            .arg("-c:a")
+            .arg("copy")  // Copy audio stream (no re-encoding)
+            .arg("-movflags")
+            .arg("+faststart");  // Enable web streaming
+    } else {
+        // SLOW MODE: Full re-encode (for incompatible codecs)
+        eprintln!("🐌 Using SLOW mode (full re-encode)");
+        convert
+            .arg("-c:v")
+            .arg("libx264")  // Re-encode video to H.264
+            .arg("-c:a")
+            .arg("aac")      // Re-encode audio to AAC
+            .arg("-preset")
+            .arg("veryfast")  // Faster preset for speed
+            .arg("-crf")
+            .arg("23")       // Quality setting
+            .arg("-movflags")
+            .arg("+faststart");
+    }
+    
+    convert.arg("-y").arg(&output_path);
+    
+    // Hide output on Windows
+    #[cfg(windows)]
+    {
+        convert.stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+    }
+    
+    let status = convert.status()
+        .map_err(|e| format!("Failed to execute FFmpeg: {}. Make sure FFmpeg is installed and in PATH.", e))?;
+    
+    if !status.success() {
+        // If fast mode failed, it might be due to incompatible codecs
+        // Return error with suggestion to try slow mode
+        if use_fast_mode {
+            return Err(format!("Fast remux failed (codecs may be incompatible). Try slow mode for full re-encode. Exit code: {:?}", status.code()));
+        }
+        return Err(format!("FFmpeg conversion failed. Exit code: {:?}", status.code()));
+    }
+    
+    eprintln!("✅ Successfully converted: {}", output_path);
+    Ok(output_path)
+}
+
+#[tauri::command]
+pub fn convert_mkv_folder_to_mp4(folder_path: String, output_folder: Option<String>, fast_mode: Option<bool>) -> Result<serde_json::Value, String> {
+    eprintln!("🔄 Converting all MKV files in folder: {}", folder_path);
+    
+    let folder = PathBuf::from(&folder_path);
+    if !folder.exists() || !folder.is_dir() {
+        return Err(format!("Folder does not exist or is not a directory: {}", folder_path));
+    }
+    
+    // Determine output folder
+    let output_dir = if let Some(output) = output_folder {
+        PathBuf::from(output)
+    } else {
+        // Default: create "converted" subfolder in same directory
+        folder.join("converted")
+    };
+    
+    std::fs::create_dir_all(&output_dir)
+        .map_err(|e| format!("Failed to create output directory: {}", e))?;
+    
+    let mut results = Vec::new();
+    let mut success_count = 0;
+    let mut error_count = 0;
+    
+    // Scan folder for MKV files
+    let entries = std::fs::read_dir(&folder)
+        .map_err(|e| format!("Failed to read folder: {}", e))?;
+    
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
+        let path = entry.path();
+        
+        if path.is_file() {
+            if let Some(ext) = path.extension() {
+                if ext.to_string_lossy().to_lowercase() == "mkv" {
+                    let file_name = path.file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("unknown")
+                        .to_string();
+                    
+                    let output_path = output_dir.join(format!("{}.mp4", file_name));
+                    
+                    eprintln!("📹 Converting: {} -> {}", path.display(), output_path.display());
+                    
+                    match convert_mkv_to_mp4(
+                        path.to_string_lossy().to_string(),
+                        output_path.to_string_lossy().to_string(),
+                        fast_mode
+                    ) {
+                        Ok(output) => {
+                            results.push(serde_json::json!({
+                                "input": path.to_string_lossy().to_string(),
+                                "output": output,
+                                "status": "success"
+                            }));
+                            success_count += 1;
+                        }
+                        Err(e) => {
+                            results.push(serde_json::json!({
+                                "input": path.to_string_lossy().to_string(),
+                                "output": null,
+                                "status": "error",
+                                "error": e
+                            }));
+                            error_count += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    eprintln!("✅ Conversion complete: {} succeeded, {} failed", success_count, error_count);
+    
+    Ok(serde_json::json!({
+        "total": results.len(),
+        "success": success_count,
+        "errors": error_count,
+        "output_folder": output_dir.to_string_lossy().to_string(),
+        "results": results
+    }))
 }
 
