@@ -13,9 +13,10 @@
 3. **Returning to Fullscreen** - ✅ Works correctly (black gap fixed)
 4. **Menu Quadrant Mode** - Hover 2 seconds on CornerDownRight button to push menu to bottom-right quadrant
 5. **Player Quadrant Mode (Single Player)** - ✅ Hover 2 seconds on MoveDown button to push player to bottom-left quadrant
-6. ~~**Windowed Main Player** - Main player starts in resizable, draggable window mode~~ ⏸️ **REVERTED** - Main player back to normal layout
+6. **Windowed Main Player (Fullscreen Mode)** - ✅ Main player is windowed and resizable in fullscreen mode, scales proportionally when menu opens
 7. **Floating Window Player** - ✅ "2nd Window Player" option creates resizable, draggable floating window
 8. **2-Player Limit** - ✅ Hard rule: Only 2 players max - menu options disabled when limit reached
+9. **Proportional Scaling** - ✅ Main player and floating window maintain relative sizes when menu opens or quadrant mode activates
 
 ### ⚠️ Issues to Fix
 1. ~~**Fullscreen Black Gap** - Right side shows black when it should be hidden in fullscreen~~ ✅ **FIXED**
@@ -129,9 +130,10 @@
 - Condition: `playerQuadrantMode && showSideMenu && !quarterSplitscreenMode`
 - **react-youtube implementation**: Both primary and secondary players now use react-youtube component for better React lifecycle management
 - **Video playback fix**: Using `key` prop and `seekTo` in `onReady` instead of `start` parameter to prevent video resets on re-render
-- **Windowed players**: Floating window player is draggable and resizable with desktop window styling
+- **Windowed players**: Main player (in fullscreen) and floating window player are draggable and resizable with desktop window styling
 - **2-player limit**: Menu options automatically disable when 2 players are active (quarter splitscreen OR floating window)
-- **Main player**: Reverted to normal layout (not windowed by default) - can be windowed in quarter splitscreen mode when secondary player exists
+- **Proportional scaling**: When menu opens, both players scale to left half maintaining relative proportions. When quadrant mode activates, both scale to bottom-left quadrant maintaining relative proportions
+- **Fullscreen layout tracking**: System tracks fullscreen layout state and applies proportional scaling based on menu/quadrant mode
 
 ## Implementation Details
 
