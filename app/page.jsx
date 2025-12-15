@@ -651,7 +651,7 @@ export default function YouTubePlaylistPlayer() {
   const [isDraggingWindow, setIsDraggingWindow] = useState(false);
   const [isResizingWindow, setIsResizingWindow] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0, posX: 0, posY: 0 });
   // Main player window state (windowed in fullscreen mode only)
   const [mainPlayerWindowPosition, setMainPlayerWindowPosition] = useState({ x: 0, y: 0 });
   const [mainPlayerWindowSize, setMainPlayerWindowSize] = useState({ width: 0, height: 0 }); // Will be set based on screen size
@@ -663,7 +663,9 @@ export default function YouTubePlaylistPlayer() {
   const [isDraggingMainWindow, setIsDraggingMainWindow] = useState(false);
   const [isResizingMainWindow, setIsResizingMainWindow] = useState(false);
   const [mainWindowDragStart, setMainWindowDragStart] = useState({ x: 0, y: 0 });
-  const [mainWindowResizeStart, setMainWindowResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const [mainWindowResizeStart, setMainWindowResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0, posX: 0, posY: 0 });
+  const [mainWindowResizeDirection, setMainWindowResizeDirection] = useState(null); // 'n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'
+  const [floatingWindowResizeDirection, setFloatingWindowResizeDirection] = useState(null); // 'n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'
   const [renamingGroup, setRenamingGroup] = useState(null);
   const [groupRenameInput, setGroupRenameInput] = useState("");
   const [newPlaylistId, setNewPlaylistId] = useState('');
@@ -892,6 +894,7 @@ export default function YouTubePlaylistPlayer() {
   const cardStarHoverTimer = useRef(null);
   const cardStarLeaveTimer = useRef(null);
   const isInFullscreenTransition = useRef(false); // Track fullscreen transitions to prevent cleanup conflicts
+  const isRestoringFromProportionalScaling = useRef(false); // Track when restoring window size from proportional scaling
 
   const currentPlaylist = playlists[currentPlaylistIndex] || { videos: [], groups: {}, starred: [] };
   const chronologicalFilter = playlistFilters[currentPlaylist.id] || 'all';
@@ -6698,11 +6701,28 @@ export default function YouTubePlaylistPlayer() {
     return () => clearInterval(interval);
   }, [isPlaying, currentVideoId]);
 
-  // Floating window drag handler
+  // Floating window drag handler with pointer lock to prevent cursor from entering embed player
+  // Floating window drag handler with full-screen overlay to prevent embed player from absorbing mouse events
   useEffect(() => {
     if (!isDraggingWindow) return;
 
+    // Create full-screen overlay to capture all mouse events
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 9999;
+      cursor: grabbing;
+      background: transparent;
+      pointer-events: all;
+    `;
+    document.body.appendChild(overlay);
+
     const handleMouseMove = (e) => {
+      // Calculate drag delta based on mouse position relative to drag start position
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
       const newPosition = {
@@ -6726,29 +6746,93 @@ export default function YouTubePlaylistPlayer() {
     };
 
     const handleMouseUp = () => {
+      // Remove overlay and stop dragging
+      document.body.removeChild(overlay);
       setIsDraggingWindow(false);
     };
 
+    // Attach listeners to overlay for better event capture
+    overlay.addEventListener('mousemove', handleMouseMove);
+    overlay.addEventListener('mouseup', handleMouseUp);
+    // Also attach to document as fallback
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+
     return () => {
+      overlay.removeEventListener('mousemove', handleMouseMove);
+      overlay.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      // Clean up overlay if still present
+      if (document.body.contains(overlay)) {
+        document.body.removeChild(overlay);
+      }
     };
   }, [isDraggingWindow, dragStart, floatingWindowPosition, showSideMenu, floatingWindowVideoId]);
 
-  // Floating window resize handler
+  // Floating window resize handler with full-screen overlay to prevent embed player from absorbing mouse events
   useEffect(() => {
-    if (!isResizingWindow) return;
+    if (!isResizingWindow || !floatingWindowResizeDirection) return;
+
+    // Get cursor style based on direction
+    const cursorMap = {
+      'n': 'ns-resize',
+      's': 'ns-resize',
+      'e': 'ew-resize',
+      'w': 'ew-resize',
+      'ne': 'nesw-resize',
+      'nw': 'nwse-resize',
+      'se': 'nwse-resize',
+      'sw': 'nesw-resize'
+    };
+
+    // Create full-screen overlay to capture all mouse events
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 9999;
+      cursor: ${cursorMap[floatingWindowResizeDirection] || 'nwse-resize'};
+      background: transparent;
+      pointer-events: all;
+    `;
+    document.body.appendChild(overlay);
 
     const handleMouseMove = (e) => {
       const deltaX = e.clientX - resizeStart.x;
       const deltaY = e.clientY - resizeStart.y;
-      const newSize = {
-        width: Math.max(300, resizeStart.width + deltaX),
-        height: Math.max(200, resizeStart.height + deltaY)
-      };
+      const dir = floatingWindowResizeDirection;
+      
+      let newSize = { width: resizeStart.width, height: resizeStart.height };
+      let newPosition = { x: resizeStart.posX, y: resizeStart.posY };
+      
+      // Handle width changes
+      if (dir.includes('e')) {
+        // Resizing from right edge
+        newSize.width = Math.max(300, resizeStart.width + deltaX);
+      } else if (dir.includes('w')) {
+        // Resizing from left edge
+        const newWidth = Math.max(300, resizeStart.width - deltaX);
+        newPosition.x = resizeStart.posX + (resizeStart.width - newWidth);
+        newSize.width = newWidth;
+      }
+      
+      // Handle height changes
+      if (dir.includes('s')) {
+        // Resizing from bottom edge
+        newSize.height = Math.max(200, resizeStart.height + deltaY);
+      } else if (dir.includes('n')) {
+        // Resizing from top edge
+        const newHeight = Math.max(200, resizeStart.height - deltaY);
+        newPosition.y = resizeStart.posY + (resizeStart.height - newHeight);
+        newSize.height = newHeight;
+      }
+      
       setFloatingWindowSize(newSize);
+      setFloatingWindowPosition(newPosition);
       
       // Update fullscreen layout when resizing in fullscreen mode
       if (!showSideMenu && floatingWindowVideoId) {
@@ -6756,6 +6840,8 @@ export default function YouTubePlaylistPlayer() {
           ...prev,
           floatingWindow: {
             ...prev.floatingWindow,
+            x: newPosition.x,
+            y: newPosition.y,
             width: newSize.width,
             height: newSize.height
           }
@@ -6764,22 +6850,157 @@ export default function YouTubePlaylistPlayer() {
     };
 
     const handleMouseUp = () => {
+      // Remove overlay and stop resizing
+      document.body.removeChild(overlay);
       setIsResizingWindow(false);
+      setFloatingWindowResizeDirection(null);
     };
 
+    // Attach listeners to overlay for better event capture
+    overlay.addEventListener('mousemove', handleMouseMove);
+    overlay.addEventListener('mouseup', handleMouseUp);
+    // Also attach to document as fallback
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+
     return () => {
+      overlay.removeEventListener('mousemove', handleMouseMove);
+      overlay.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      // Clean up overlay if still present
+      if (document.body.contains(overlay)) {
+        document.body.removeChild(overlay);
+      }
     };
-  }, [isResizingWindow, resizeStart, showSideMenu, floatingWindowVideoId]);
+  }, [isResizingWindow, floatingWindowResizeDirection, resizeStart, showSideMenu, floatingWindowVideoId]);
 
-  // Main player window drag handler
+  // Main player window resize handler with full-screen overlay to prevent embed player from absorbing mouse events
+  useEffect(() => {
+    if (!isResizingMainWindow || !mainWindowResizeDirection) return;
+
+    // Get cursor style based on direction
+    const cursorMap = {
+      'n': 'ns-resize',
+      's': 'ns-resize',
+      'e': 'ew-resize',
+      'w': 'ew-resize',
+      'ne': 'nesw-resize',
+      'nw': 'nwse-resize',
+      'se': 'nwse-resize',
+      'sw': 'nesw-resize'
+    };
+
+    // Create full-screen overlay to capture all mouse events
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 9999;
+      cursor: ${cursorMap[mainWindowResizeDirection] || 'nwse-resize'};
+      background: transparent;
+      pointer-events: all;
+    `;
+    document.body.appendChild(overlay);
+
+    const handleMouseMove = (e) => {
+      const deltaX = e.clientX - mainWindowResizeStart.x;
+      const deltaY = e.clientY - mainWindowResizeStart.y;
+      const dir = mainWindowResizeDirection;
+      
+      let newSize = { width: mainWindowResizeStart.width, height: mainWindowResizeStart.height };
+      let newPosition = { x: mainWindowResizeStart.posX, y: mainWindowResizeStart.posY };
+      
+      // Handle width changes
+      if (dir.includes('e')) {
+        // Resizing from right edge
+        newSize.width = Math.max(400, mainWindowResizeStart.width + deltaX);
+      } else if (dir.includes('w')) {
+        // Resizing from left edge
+        const newWidth = Math.max(400, mainWindowResizeStart.width - deltaX);
+        newPosition.x = mainWindowResizeStart.posX + (mainWindowResizeStart.width - newWidth);
+        newSize.width = newWidth;
+      }
+      
+      // Handle height changes
+      if (dir.includes('s')) {
+        // Resizing from bottom edge
+        newSize.height = Math.max(300, mainWindowResizeStart.height + deltaY);
+      } else if (dir.includes('n')) {
+        // Resizing from top edge
+        const newHeight = Math.max(300, mainWindowResizeStart.height - deltaY);
+        newPosition.y = mainWindowResizeStart.posY + (mainWindowResizeStart.height - newHeight);
+        newSize.height = newHeight;
+      }
+      
+      setMainPlayerWindowSize(newSize);
+      setMainPlayerWindowPosition(newPosition);
+      
+      // Update fullscreen layout when resizing in fullscreen mode
+      if (!showSideMenu) {
+        setFullscreenLayout(prev => ({
+          ...prev,
+          mainPlayer: {
+            x: newPosition.x,
+            y: newPosition.y,
+            width: newSize.width,
+            height: newSize.height
+          }
+        }));
+      }
+    };
+
+    const handleMouseUp = () => {
+      // Remove overlay and stop resizing
+      document.body.removeChild(overlay);
+      setIsResizingMainWindow(false);
+      setMainWindowResizeDirection(null);
+    };
+
+    // Attach listeners to overlay for better event capture
+    overlay.addEventListener('mousemove', handleMouseMove);
+    overlay.addEventListener('mouseup', handleMouseUp);
+    // Also attach to document as fallback
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      overlay.removeEventListener('mousemove', handleMouseMove);
+      overlay.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      // Clean up overlay if still present
+      if (document.body.contains(overlay)) {
+        document.body.removeChild(overlay);
+      }
+    };
+  }, [isResizingMainWindow, mainWindowResizeDirection, mainWindowResizeStart, showSideMenu]);
+
+  // Main player window drag handler with pointer lock to prevent cursor from entering embed player
+  // Main player window drag handler with full-screen overlay to prevent embed player from absorbing mouse events
   useEffect(() => {
     if (!isDraggingMainWindow) return;
 
+    // Create full-screen overlay to capture all mouse events
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 9999;
+      cursor: grabbing;
+      background: transparent;
+      pointer-events: all;
+    `;
+    document.body.appendChild(overlay);
+
     const handleMouseMove = (e) => {
+      // Calculate drag delta based on mouse position relative to drag start position
       const deltaX = e.clientX - mainWindowDragStart.x;
       const deltaY = e.clientY - mainWindowDragStart.y;
       const newPosition = {
@@ -6803,54 +7024,29 @@ export default function YouTubePlaylistPlayer() {
     };
 
     const handleMouseUp = () => {
+      // Remove overlay and stop dragging
+      document.body.removeChild(overlay);
       setIsDraggingMainWindow(false);
     };
 
+    // Attach listeners to overlay for better event capture
+    overlay.addEventListener('mousemove', handleMouseMove);
+    overlay.addEventListener('mouseup', handleMouseUp);
+    // Also attach to document as fallback
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+
     return () => {
+      overlay.removeEventListener('mousemove', handleMouseMove);
+      overlay.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDraggingMainWindow, mainWindowDragStart, mainPlayerWindowPosition, showSideMenu]);
-
-  // Main player window resize handler
-  useEffect(() => {
-    if (!isResizingMainWindow) return;
-
-    const handleMouseMove = (e) => {
-      const deltaX = e.clientX - mainWindowResizeStart.x;
-      const deltaY = e.clientY - mainWindowResizeStart.y;
-      const newSize = {
-        width: Math.max(400, mainWindowResizeStart.width + deltaX),
-        height: Math.max(300, mainWindowResizeStart.height + deltaY)
-      };
-      setMainPlayerWindowSize(newSize);
-      // Update fullscreen layout when resizing in fullscreen mode
-      if (!showSideMenu) {
-        setFullscreenLayout(prev => ({
-          ...prev,
-          mainPlayer: {
-            x: mainPlayerWindowPosition.x,
-            y: mainPlayerWindowPosition.y,
-            width: newSize.width,
-            height: newSize.height
-          }
-        }));
+      // Clean up overlay if still present
+      if (document.body.contains(overlay)) {
+        document.body.removeChild(overlay);
       }
     };
-
-    const handleMouseUp = () => {
-      setIsResizingMainWindow(false);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isResizingMainWindow, mainWindowResizeStart, showSideMenu, mainPlayerWindowPosition]);
+  }, [isDraggingMainWindow, mainWindowDragStart, mainPlayerWindowPosition, showSideMenu]);
 
   // Initialize main player window size in fullscreen mode
   useEffect(() => {
@@ -6860,11 +7056,15 @@ export default function YouTubePlaylistPlayer() {
       const screenHeight = window.innerHeight;
       
       if (mainPlayerWindowSize.width === 0 || mainPlayerWindowSize.height === 0) {
-        // First time in fullscreen - set to full screen
-        setMainPlayerWindowSize({ width: screenWidth, height: screenHeight });
-        setMainPlayerWindowPosition({ x: 0, y: 0 });
+        // First time in fullscreen - set to 81% width (10% narrower), 64% height (20% shorter) (centered)
+        const initialWidth = screenWidth * 0.81;
+        const initialHeight = screenHeight * 0.64;
+        const initialX = (screenWidth - initialWidth) / 2;
+        const initialY = (screenHeight - initialHeight) / 2;
+        setMainPlayerWindowSize({ width: initialWidth, height: initialHeight });
+        setMainPlayerWindowPosition({ x: initialX, y: initialY });
         setFullscreenLayout({
-          mainPlayer: { x: 0, y: 0, width: screenWidth, height: screenHeight },
+          mainPlayer: { x: initialX, y: initialY, width: initialWidth, height: initialHeight },
           floatingWindow: floatingWindowVideoId ? {
             x: floatingWindowPosition.x,
             y: floatingWindowPosition.y,
@@ -6873,22 +7073,58 @@ export default function YouTubePlaylistPlayer() {
           } : { x: 0, y: 0, width: 0, height: 0 }
         });
       } else {
-        // Update fullscreen layout when sizes change
-        setFullscreenLayout(prev => ({
-          ...prev,
-          mainPlayer: {
-            x: mainPlayerWindowPosition.x,
-            y: mainPlayerWindowPosition.y,
-            width: mainPlayerWindowSize.width,
-            height: mainPlayerWindowSize.height
-          },
-          floatingWindow: floatingWindowVideoId ? {
-            x: floatingWindowPosition.x,
-            y: floatingWindowPosition.y,
-            width: floatingWindowSize.width,
-            height: floatingWindowSize.height
-          } : prev.floatingWindow
-        }));
+        // Update fullscreen layout only when user manually resizes/drags (not during automatic transitions)
+        // Skip updates during proportional scaling restoration
+        // Note: Drag and resize handlers already update fullscreenLayout directly, so this is mainly for syncing
+        if (!isRestoringFromProportionalScaling.current) {
+          // Only update if window size is clearly fullscreen-sized (not scaled from menu/quadrant modes)
+          // Scaled sizes would be: half width (~40% of screen) or quarter size (~20% of screen)
+          // Fullscreen should be at least 50% of screen width
+          const screenWidth = window.innerWidth;
+          const screenHeight = window.innerHeight;
+          const minFullscreenWidth = screenWidth * 0.5; // At least 50% of screen width
+          const minFullscreenHeight = screenHeight * 0.4; // At least 40% of screen height
+          
+          // Only update if window is clearly fullscreen-sized (not scaled)
+          // Scaled sizes: half = ~40% width, quarter = ~20% width
+          // Fullscreen should be at least 50% of screen width to avoid updating with scaled sizes
+          if (mainPlayerWindowSize.width >= minFullscreenWidth && mainPlayerWindowSize.height >= minFullscreenHeight) {
+            // Also check that it's not currently being dragged/resized (those handlers update it directly)
+            // And ensure we're not in a transition state
+            if (!isDraggingMainWindow && !isResizingMainWindow) {
+              // Additional safety: only update if the new size is reasonably close to or larger than current fullscreenLayout
+              // This prevents shrinking fullscreenLayout with smaller scaled sizes
+              setFullscreenLayout(prev => {
+                const currentLayoutWidth = prev.mainPlayer.width || 0;
+                const currentLayoutHeight = prev.mainPlayer.height || 0;
+                
+                // Only update if new size is at least 80% of current layout size (prevents shrinking with scaled sizes)
+                // Or if current layout is empty/uninitialized
+                if (currentLayoutWidth === 0 || currentLayoutHeight === 0 ||
+                    (mainPlayerWindowSize.width >= currentLayoutWidth * 0.8 && 
+                     mainPlayerWindowSize.height >= currentLayoutHeight * 0.8)) {
+                  return {
+                    ...prev,
+                    mainPlayer: {
+                      x: mainPlayerWindowPosition.x,
+                      y: mainPlayerWindowPosition.y,
+                      width: mainPlayerWindowSize.width,
+                      height: mainPlayerWindowSize.height
+                    },
+                    floatingWindow: floatingWindowVideoId ? {
+                      x: floatingWindowPosition.x,
+                      y: floatingWindowPosition.y,
+                      width: floatingWindowSize.width,
+                      height: floatingWindowSize.height
+                    } : prev.floatingWindow
+                  };
+                }
+                // Don't update if new size is smaller (likely a scaled size)
+                return prev;
+              });
+            }
+          }
+        }
       }
     }
   }, [showSideMenu, mainPlayerWindowSize, mainPlayerWindowPosition, floatingWindowVideoId, floatingWindowSize, floatingWindowPosition]);
@@ -6898,6 +7134,9 @@ export default function YouTubePlaylistPlayer() {
     if (!showSideMenu) {
       // Fullscreen mode - restore to fullscreen layout (only if we have saved layout)
       if (fullscreenLayout.mainPlayer.width > 0 && fullscreenLayout.mainPlayer.height > 0) {
+        // Set flag to prevent initialization useEffect from updating fullscreenLayout during restoration
+        isRestoringFromProportionalScaling.current = true;
+        
         setMainPlayerWindowSize({
           width: fullscreenLayout.mainPlayer.width,
           height: fullscreenLayout.mainPlayer.height
@@ -6906,6 +7145,12 @@ export default function YouTubePlaylistPlayer() {
           x: fullscreenLayout.mainPlayer.x,
           y: fullscreenLayout.mainPlayer.y
         });
+        
+        // Clear flag after a longer delay to ensure restoration completes and state stabilizes
+        // This prevents the initialization useEffect from overwriting fullscreenLayout with scaled sizes
+        setTimeout(() => {
+          isRestoringFromProportionalScaling.current = false;
+        }, 300);
       }
       // Floating window restores to fullscreen position
       if (floatingWindowVideoId && fullscreenLayout.floatingWindow.width > 0) {
@@ -6928,6 +7173,9 @@ export default function YouTubePlaylistPlayer() {
       
       // Scale main player proportionally to left half
       if (fullscreenLayout.mainPlayer.width > 0 && fullscreenLayout.mainPlayer.height > 0) {
+        // Set flag to prevent initialization useEffect from updating fullscreenLayout during restoration
+        isRestoringFromProportionalScaling.current = true;
+        
         const scaledWidth = fullscreenLayout.mainPlayer.width * scaleFactorX;
         const scaledHeight = fullscreenLayout.mainPlayer.height * scaleFactorY;
         const scaledX = fullscreenLayout.mainPlayer.x * scaleFactorX;
@@ -6935,6 +7183,11 @@ export default function YouTubePlaylistPlayer() {
         
         setMainPlayerWindowSize({ width: scaledWidth, height: scaledHeight });
         setMainPlayerWindowPosition({ x: scaledX, y: scaledY });
+        
+        // Clear flag after a short delay to allow state updates to complete
+        setTimeout(() => {
+          isRestoringFromProportionalScaling.current = false;
+        }, 100);
       }
       
       // Scale floating window proportionally to left half
@@ -7308,21 +7561,153 @@ export default function YouTubePlaylistPlayer() {
               />
             )}
           </div>
-          {/* Resize handle */}
+          {/* Resize handles - 8 total (4 corners + 4 sides) */}
+          {/* Top-left corner */}
           <div
-            className="absolute bottom-0 right-0 w-4 h-4 bg-gray-600 cursor-nwse-resize"
+            className="absolute top-0 left-0 w-4 h-4 bg-gray-600 cursor-nwse-resize z-50"
             onMouseDown={(e) => {
               e.stopPropagation();
               setIsResizingMainWindow(true);
+              setMainWindowResizeDirection('nw');
               setMainWindowResizeStart({
                 x: e.clientX,
                 y: e.clientY,
                 width: mainPlayerWindowSize.width,
-                height: mainPlayerWindowSize.height
+                height: mainPlayerWindowSize.height,
+                posX: mainPlayerWindowPosition.x,
+                posY: mainPlayerWindowPosition.y
+              });
+            }}
+            style={{
+              clipPath: 'polygon(0 0, 100% 0, 0 100%)'
+            }}
+          />
+          {/* Top-right corner */}
+          <div
+            className="absolute top-0 right-0 w-4 h-4 bg-gray-600 cursor-nesw-resize z-50"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setIsResizingMainWindow(true);
+              setMainWindowResizeDirection('ne');
+              setMainWindowResizeStart({
+                x: e.clientX,
+                y: e.clientY,
+                width: mainPlayerWindowSize.width,
+                height: mainPlayerWindowSize.height,
+                posX: mainPlayerWindowPosition.x,
+                posY: mainPlayerWindowPosition.y
+              });
+            }}
+            style={{
+              clipPath: 'polygon(100% 0, 100% 100%, 0 0)'
+            }}
+          />
+          {/* Bottom-left corner */}
+          <div
+            className="absolute bottom-0 left-0 w-4 h-4 bg-gray-600 cursor-nesw-resize z-50"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setIsResizingMainWindow(true);
+              setMainWindowResizeDirection('sw');
+              setMainWindowResizeStart({
+                x: e.clientX,
+                y: e.clientY,
+                width: mainPlayerWindowSize.width,
+                height: mainPlayerWindowSize.height,
+                posX: mainPlayerWindowPosition.x,
+                posY: mainPlayerWindowPosition.y
+              });
+            }}
+            style={{
+              clipPath: 'polygon(0 0, 100% 100%, 0 100%)'
+            }}
+          />
+          {/* Bottom-right corner */}
+          <div
+            className="absolute bottom-0 right-0 w-4 h-4 bg-gray-600 cursor-nwse-resize z-50"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setIsResizingMainWindow(true);
+              setMainWindowResizeDirection('se');
+              setMainWindowResizeStart({
+                x: e.clientX,
+                y: e.clientY,
+                width: mainPlayerWindowSize.width,
+                height: mainPlayerWindowSize.height,
+                posX: mainPlayerWindowPosition.x,
+                posY: mainPlayerWindowPosition.y
               });
             }}
             style={{
               clipPath: 'polygon(100% 0, 100% 100%, 0 100%)'
+            }}
+          />
+          {/* Top edge */}
+          <div
+            className="absolute top-0 left-4 right-4 h-2 bg-gray-600 cursor-ns-resize z-50"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setIsResizingMainWindow(true);
+              setMainWindowResizeDirection('n');
+              setMainWindowResizeStart({
+                x: e.clientX,
+                y: e.clientY,
+                width: mainPlayerWindowSize.width,
+                height: mainPlayerWindowSize.height,
+                posX: mainPlayerWindowPosition.x,
+                posY: mainPlayerWindowPosition.y
+              });
+            }}
+          />
+          {/* Bottom edge */}
+          <div
+            className="absolute bottom-0 left-4 right-4 h-2 bg-gray-600 cursor-ns-resize z-50"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setIsResizingMainWindow(true);
+              setMainWindowResizeDirection('s');
+              setMainWindowResizeStart({
+                x: e.clientX,
+                y: e.clientY,
+                width: mainPlayerWindowSize.width,
+                height: mainPlayerWindowSize.height,
+                posX: mainPlayerWindowPosition.x,
+                posY: mainPlayerWindowPosition.y
+              });
+            }}
+          />
+          {/* Left edge */}
+          <div
+            className="absolute left-0 top-4 bottom-4 w-2 bg-gray-600 cursor-ew-resize z-50"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setIsResizingMainWindow(true);
+              setMainWindowResizeDirection('w');
+              setMainWindowResizeStart({
+                x: e.clientX,
+                y: e.clientY,
+                width: mainPlayerWindowSize.width,
+                height: mainPlayerWindowSize.height,
+                posX: mainPlayerWindowPosition.x,
+                posY: mainPlayerWindowPosition.y
+              });
+            }}
+          />
+          {/* Right edge */}
+          <div
+            className="absolute right-0 top-4 bottom-4 w-2 bg-gray-600 cursor-ew-resize z-50"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setIsResizingMainWindow(true);
+              setMainWindowResizeDirection('e');
+              setMainWindowResizeStart({
+                x: e.clientX,
+                y: e.clientY,
+                width: mainPlayerWindowSize.width,
+                height: mainPlayerWindowSize.height,
+                posX: mainPlayerWindowPosition.x,
+                posY: mainPlayerWindowPosition.y
+              });
             }}
           />
         </div>
@@ -7603,89 +7988,95 @@ export default function YouTubePlaylistPlayer() {
             )}
           </div>
         ) : (
-          /* Normal single player container */
-          <div 
-            className={`relative w-full h-full transition-all duration-500 ease-in-out ${
-              playerQuadrantMode && showSideMenu && !quarterSplitscreenMode ? 'flex flex-col' : ''
-            }`}
-          >
-            {/* Black top section - only visible in quadrant mode */}
+          /* Normal single player container - HIDDEN when windowed version is shown (fullscreen mode OR menu mode with windowed player) */
+          (!showSideMenu || (currentVideoId && !quarterSplitscreenMode)) ? (
+            /* Fullscreen mode OR menu mode with windowed player - show black space, windowed player is rendered separately */
+            <div className="w-full h-full bg-black" />
+          ) : (
+            /* Menu open without windowed player - show normal player layout (for non-windowed mode compatibility) */
             <div 
-              className={`w-full bg-black transition-all duration-500 ease-in-out ${
-                playerQuadrantMode && showSideMenu && !quarterSplitscreenMode ? 'h-1/2 flex-shrink-0' : 'h-0 hidden'
-              }`}
-            />
-            {/* Player container - always in same position, just changes height */}
-            <div 
-              ref={playerContainerRef} 
-              className={`relative w-full transition-all duration-500 ease-in-out ${
-                playerQuadrantMode && showSideMenu && !quarterSplitscreenMode ? 'h-1/2 flex-shrink-0' : 'h-full'
+              className={`relative w-full h-full transition-all duration-500 ease-in-out ${
+                playerQuadrantMode && showSideMenu && !quarterSplitscreenMode ? 'flex flex-col' : ''
               }`}
             >
-              {/* YouTube player using react-youtube - handles lifecycle better */}
-              {currentVideoId && !isLocalFile(currentVideoId) && (
-                <YouTube
-                  key={currentVideoId}
-                  videoId={currentVideoId}
-                  opts={{
-                    height: '100%',
-                    width: '100%',
-                    playerVars: {
-                      autoplay: 1,
-                      controls: 1,
-                      disablekb: 1,
-                      fs: 0,
-                      iv_load_policy: 3,
-                      modestbranding: 1,
-                      playsinline: 1,
-                      rel: 0,
-                      showinfo: 0,
-                      origin: typeof window !== 'undefined' ? window.location.origin : ''
-                    }
-                  }}
-                  onReady={(event) => {
-                    playerRef.current = event.target;
-                    setIsPlayerReady(true);
-                    
-                    // Seek to resume position if available (only once per video load)
-                    if (!hasSeekedToResume.current) {
-                      const resumeTime = getVideoProgress(currentVideoId);
-                      const videoDuration = currentPlaylist.videos.find(v => v.id === currentVideoId)?.duration || 1;
-                      // Only seek if we have progress and it's not near the end (within 95%)
-                      if (resumeTime > 0 && resumeTime / videoDuration < 0.95) {
-                        try {
-                          event.target.seekTo(resumeTime, true);
-                          console.log('Seeking to resume position:', resumeTime);
-                        } catch (error) {
-                          console.error('Error seeking to resume position:', error);
+              {/* Black top section - only visible in quadrant mode */}
+              <div 
+                className={`w-full bg-black transition-all duration-500 ease-in-out ${
+                  playerQuadrantMode && showSideMenu && !quarterSplitscreenMode ? 'h-1/2 flex-shrink-0' : 'h-0 hidden'
+                }`}
+              />
+              {/* Player container - always in same position, just changes height */}
+              <div 
+                ref={playerContainerRef} 
+                className={`relative w-full transition-all duration-500 ease-in-out ${
+                  playerQuadrantMode && showSideMenu && !quarterSplitscreenMode ? 'h-1/2 flex-shrink-0' : 'h-full'
+                }`}
+              >
+                {/* YouTube player using react-youtube - handles lifecycle better */}
+                {currentVideoId && !isLocalFile(currentVideoId) && (
+                  <YouTube
+                    key={currentVideoId}
+                    videoId={currentVideoId}
+                    opts={{
+                      height: '100%',
+                      width: '100%',
+                      playerVars: {
+                        autoplay: 1,
+                        controls: 1,
+                        disablekb: 1,
+                        fs: 0,
+                        iv_load_policy: 3,
+                        modestbranding: 1,
+                        playsinline: 1,
+                        rel: 0,
+                        showinfo: 0,
+                        origin: typeof window !== 'undefined' ? window.location.origin : ''
+                      }
+                    }}
+                    onReady={(event) => {
+                      playerRef.current = event.target;
+                      setIsPlayerReady(true);
+                      
+                      // Seek to resume position if available (only once per video load)
+                      if (!hasSeekedToResume.current) {
+                        const resumeTime = getVideoProgress(currentVideoId);
+                        const videoDuration = currentPlaylist.videos.find(v => v.id === currentVideoId)?.duration || 1;
+                        // Only seek if we have progress and it's not near the end (within 95%)
+                        if (resumeTime > 0 && resumeTime / videoDuration < 0.95) {
+                          try {
+                            event.target.seekTo(resumeTime, true);
+                            console.log('Seeking to resume position:', resumeTime);
+                          } catch (error) {
+                            console.error('Error seeking to resume position:', error);
+                          }
                         }
+                        hasSeekedToResume.current = true;
                       }
-                      hasSeekedToResume.current = true;
-                    }
-                  }}
-                  onStateChange={(event) => {
-                    if (event.data === 1) { // PLAYING
-                      setIsPlaying(true);
-                    } else if (event.data === 2) { // PAUSED
-                      setIsPlaying(false);
-                      if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
-                        saveVideoProgress(currentVideoId, playerRef.current.getCurrentTime());
+                    }}
+                    onStateChange={(event) => {
+                      if (event.data === 1) { // PLAYING
+                        setIsPlaying(true);
+                      } else if (event.data === 2) { // PAUSED
+                        setIsPlaying(false);
+                        if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
+                          saveVideoProgress(currentVideoId, playerRef.current.getCurrentTime());
+                        }
+                      } else if (event.data === 0) { // ENDED
+                        goToNextVideo();
                       }
-                    } else if (event.data === 0) { // ENDED
-                      goToNextVideo();
-                    }
-                  }}
-                  onError={(event) => {
-                    console.error("YouTube player error:", event.data);
-                    if ([100, 101, 150].includes(event.data)) {
-                      goToNextVideo();
-                    }
-                  }}
-                  className="absolute inset-0 w-full h-full"
-                />
-              )}
+                    }}
+                    onError={(event) => {
+                      console.error("YouTube player error:", event.data);
+                      if ([100, 101, 150].includes(event.data)) {
+                        goToNextVideo();
+                      }
+                    }}
+                    className="absolute inset-0 w-full h-full"
+                  />
+                )}
+              </div>
             </div>
-          </div>
+          )
         )}
       </div>
       
@@ -8997,21 +9388,153 @@ export default function YouTubePlaylistPlayer() {
               />
             )}
           </div>
-          {/* Resize handle */}
+          {/* Resize handles - 8 total (4 corners + 4 sides) */}
+          {/* Top-left corner */}
           <div
-            className="absolute bottom-0 right-0 w-4 h-4 bg-gray-600 cursor-nwse-resize"
+            className="absolute top-0 left-0 w-4 h-4 bg-gray-600 cursor-nwse-resize z-50"
             onMouseDown={(e) => {
               e.stopPropagation();
               setIsResizingWindow(true);
+              setFloatingWindowResizeDirection('nw');
               setResizeStart({
                 x: e.clientX,
                 y: e.clientY,
                 width: floatingWindowSize.width,
-                height: floatingWindowSize.height
+                height: floatingWindowSize.height,
+                posX: floatingWindowPosition.x,
+                posY: floatingWindowPosition.y
+              });
+            }}
+            style={{
+              clipPath: 'polygon(0 0, 100% 0, 0 100%)'
+            }}
+          />
+          {/* Top-right corner */}
+          <div
+            className="absolute top-0 right-0 w-4 h-4 bg-gray-600 cursor-nesw-resize z-50"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setIsResizingWindow(true);
+              setFloatingWindowResizeDirection('ne');
+              setResizeStart({
+                x: e.clientX,
+                y: e.clientY,
+                width: floatingWindowSize.width,
+                height: floatingWindowSize.height,
+                posX: floatingWindowPosition.x,
+                posY: floatingWindowPosition.y
+              });
+            }}
+            style={{
+              clipPath: 'polygon(100% 0, 100% 100%, 0 0)'
+            }}
+          />
+          {/* Bottom-left corner */}
+          <div
+            className="absolute bottom-0 left-0 w-4 h-4 bg-gray-600 cursor-nesw-resize z-50"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setIsResizingWindow(true);
+              setFloatingWindowResizeDirection('sw');
+              setResizeStart({
+                x: e.clientX,
+                y: e.clientY,
+                width: floatingWindowSize.width,
+                height: floatingWindowSize.height,
+                posX: floatingWindowPosition.x,
+                posY: floatingWindowPosition.y
+              });
+            }}
+            style={{
+              clipPath: 'polygon(0 0, 100% 100%, 0 100%)'
+            }}
+          />
+          {/* Bottom-right corner */}
+          <div
+            className="absolute bottom-0 right-0 w-4 h-4 bg-gray-600 cursor-nwse-resize z-50"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setIsResizingWindow(true);
+              setFloatingWindowResizeDirection('se');
+              setResizeStart({
+                x: e.clientX,
+                y: e.clientY,
+                width: floatingWindowSize.width,
+                height: floatingWindowSize.height,
+                posX: floatingWindowPosition.x,
+                posY: floatingWindowPosition.y
               });
             }}
             style={{
               clipPath: 'polygon(100% 0, 100% 100%, 0 100%)'
+            }}
+          />
+          {/* Top edge */}
+          <div
+            className="absolute top-0 left-4 right-4 h-2 bg-gray-600 cursor-ns-resize z-50"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setIsResizingWindow(true);
+              setFloatingWindowResizeDirection('n');
+              setResizeStart({
+                x: e.clientX,
+                y: e.clientY,
+                width: floatingWindowSize.width,
+                height: floatingWindowSize.height,
+                posX: floatingWindowPosition.x,
+                posY: floatingWindowPosition.y
+              });
+            }}
+          />
+          {/* Bottom edge */}
+          <div
+            className="absolute bottom-0 left-4 right-4 h-2 bg-gray-600 cursor-ns-resize z-50"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setIsResizingWindow(true);
+              setFloatingWindowResizeDirection('s');
+              setResizeStart({
+                x: e.clientX,
+                y: e.clientY,
+                width: floatingWindowSize.width,
+                height: floatingWindowSize.height,
+                posX: floatingWindowPosition.x,
+                posY: floatingWindowPosition.y
+              });
+            }}
+          />
+          {/* Left edge */}
+          <div
+            className="absolute left-0 top-4 bottom-4 w-2 bg-gray-600 cursor-ew-resize z-50"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setIsResizingWindow(true);
+              setFloatingWindowResizeDirection('w');
+              setResizeStart({
+                x: e.clientX,
+                y: e.clientY,
+                width: floatingWindowSize.width,
+                height: floatingWindowSize.height,
+                posX: floatingWindowPosition.x,
+                posY: floatingWindowPosition.y
+              });
+            }}
+          />
+          {/* Right edge */}
+          <div
+            className="absolute right-0 top-4 bottom-4 w-2 bg-gray-600 cursor-ew-resize z-50"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setIsResizingWindow(true);
+              setFloatingWindowResizeDirection('e');
+              setResizeStart({
+                x: e.clientX,
+                y: e.clientY,
+                width: floatingWindowSize.width,
+                height: floatingWindowSize.height,
+                posX: floatingWindowPosition.x,
+                posY: floatingWindowPosition.y
+              });
             }}
           />
         </div>
