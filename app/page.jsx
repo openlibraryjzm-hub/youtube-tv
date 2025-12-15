@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect, useRef, useMemo } from "react"
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react"
 
 // Console log capture for debugging
 if (typeof window !== 'undefined') {
@@ -56,6 +56,7 @@ import {
   Trash2,
   X,
   Grid3X3,
+  Maximize2,
   Star,
   Check,
   Pencil,
@@ -70,7 +71,10 @@ import {
   Upload,
   Database,
   Folder,
+  CornerDownRight,
+  MoveDown,
 } from "lucide-react"
+import YouTube from "react-youtube"
 // Firebase imports removed - using local database via API routes instead
 // import { collection, query, orderBy, limit, deleteDoc, setDoc, doc, onSnapshot, updateDoc, getDocs, writeBatch, where, deleteField } from "firebase/firestore";
 
@@ -635,7 +639,26 @@ export default function YouTubePlaylistPlayer() {
   const [shuffleSessionLog, setShuffleSessionLog] = useState([]);
   const [showSideMenu, setShowSideMenu] = useState(null);
   const [videoFilter, setVideoFilter] = useState('all'); // Filter for the side menu display
+  const [quarterSplitscreenMode, setQuarterSplitscreenMode] = useState(false); // Quarter splitscreen: two players in left quadrants
+  const [secondaryPlayerVideoId, setSecondaryPlayerVideoId] = useState(null); // Video ID for second player in quarter splitscreen
+  const [menuQuadrantMode, setMenuQuadrantMode] = useState(false); // Menu in bottom right quadrant mode
+  const [playerQuadrantMode, setPlayerQuadrantMode] = useState(false); // Player pushed to bottom quadrants mode
   const [draggingVideoId, setDraggingVideoId] = useState(null);
+  // Floating window player state
+  const [floatingWindowVideoId, setFloatingWindowVideoId] = useState(null);
+  const [floatingWindowPosition, setFloatingWindowPosition] = useState({ x: 100, y: 100 });
+  const [floatingWindowSize, setFloatingWindowSize] = useState({ width: 400, height: 300 });
+  const [isDraggingWindow, setIsDraggingWindow] = useState(false);
+  const [isResizingWindow, setIsResizingWindow] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  // Main player window state (windowed by default)
+  const [mainPlayerWindowPosition, setMainPlayerWindowPosition] = useState({ x: 50, y: 50 });
+  const [mainPlayerWindowSize, setMainPlayerWindowSize] = useState({ width: 800, height: 600 });
+  const [isDraggingMainWindow, setIsDraggingMainWindow] = useState(false);
+  const [isResizingMainWindow, setIsResizingMainWindow] = useState(false);
+  const [mainWindowDragStart, setMainWindowDragStart] = useState({ x: 0, y: 0 });
+  const [mainWindowResizeStart, setMainWindowResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const [renamingGroup, setRenamingGroup] = useState(null);
   const [groupRenameInput, setGroupRenameInput] = useState("");
   const [newPlaylistId, setNewPlaylistId] = useState('');
@@ -844,16 +867,42 @@ export default function YouTubePlaylistPlayer() {
   const playerRef = useRef(null)
   const playerContainerRef = useRef(null);
   const localVideoRef = useRef(null);
+  // Track if we've already seeked to resume position for current video
+  const hasSeekedToResume = useRef(false);
+  // Secondary player refs for quarter splitscreen mode
+  const secondaryPlayerRef = useRef(null);
+  const secondaryPlayerContainerRef = useRef(null);
+  const secondaryLocalVideoRef = useRef(null);
+  // Floating window refs
+  const floatingWindowRef = useRef(null);
+  const floatingPlayerRef = useRef(null);
+  const floatingPlayerContainerRef = useRef(null);
+  // Main player window ref
+  const mainPlayerWindowRef = useRef(null);
   const titleHoverTimerRef = useRef(null);
   const starHoverTimer = useRef(null);
   const starLeaveTimer = useRef(null);
+  const menuQuadrantHoverTimer = useRef(null);
+  const playerQuadrantHoverTimer = useRef(null);
   const cardStarHoverTimer = useRef(null);
   const cardStarLeaveTimer = useRef(null);
+  const isInFullscreenTransition = useRef(false); // Track fullscreen transitions to prevent cleanup conflicts
 
   const currentPlaylist = playlists[currentPlaylistIndex] || { videos: [], groups: {}, starred: [] };
   const chronologicalFilter = playlistFilters[currentPlaylist.id] || 'all';
   const currentVideoId = currentPlaylist.videos[currentVideoIndex]?.id || "";
   const currentVideoTitle = currentPlaylist.videos[currentVideoIndex]?.title || "No Video Selected";
+  
+  // Helper to get video title by ID
+  const getVideoTitle = (videoId) => {
+    if (!videoId) return "No Video";
+    // Search through all playlists
+    for (const playlist of playlists) {
+      const video = playlist.videos.find(v => v.id === videoId);
+      if (video) return video.title;
+    }
+    return "Unknown Video";
+  };
 
   const groupRingColors = { 
     red: 'ring-red-500', green: 'ring-green-500', blue: 'ring-blue-500', yellow: 'ring-yellow-500',
@@ -5465,14 +5514,143 @@ export default function YouTubePlaylistPlayer() {
       URL.revokeObjectURL(window.currentVideoBlobUrl);
       window.currentVideoBlobUrl = null;
     }
-    
+
+    // For YouTube videos, react-youtube handles cleanup automatically
+    // Only manually destroy if it's a local video or if we need to clear the container
     if (playerRef.current && typeof playerRef.current.destroy === 'function') {
-      try { playerRef.current.destroy(); } catch (error) { console.error("Error destroying YouTube player:", error); }
+      try { 
+        // Only destroy if it's not a react-youtube managed player (local videos use raw video element)
+        // react-youtube handles its own cleanup
+        if (currentVideoId && isLocalFile(currentVideoId)) {
+          playerRef.current.destroy();
+        }
+      } catch (error) { 
+        console.error("Error destroying player:", error); 
+      }
     }
     playerRef.current = null;
-    if (playerContainerRef.current) playerContainerRef.current.innerHTML = '';
+    // Only clear innerHTML for local videos - react-youtube manages its own DOM
+    if (playerContainerRef.current && currentVideoId && isLocalFile(currentVideoId)) {
+      playerContainerRef.current.innerHTML = '';
+    }
     setIsPlayerReady(false);
     setIsPlaying(false);
+  };
+
+  // Secondary player functions for quarter splitscreen mode
+  const destroySecondaryPlayer = () => {
+    // Cleanup secondary player blob URL
+    if (window.secondaryVideoBlobUrl) {
+      URL.revokeObjectURL(window.secondaryVideoBlobUrl);
+      window.secondaryVideoBlobUrl = null;
+    }
+    
+    // Destroy YouTube player if it exists - check if container is still in DOM first
+    if (secondaryPlayerRef.current && typeof secondaryPlayerRef.current.destroy === 'function') {
+      try {
+        // Check if container is still in DOM before destroying
+        if (secondaryPlayerContainerRef.current && secondaryPlayerContainerRef.current.parentNode) {
+          secondaryPlayerRef.current.destroy();
+        }
+      } catch (error) { 
+        console.error("Error destroying secondary YouTube player:", error); 
+      }
+    }
+    secondaryPlayerRef.current = null;
+    
+    // Clear container safely - only if it's still in the DOM
+    if (secondaryPlayerContainerRef.current && secondaryPlayerContainerRef.current.parentNode) {
+      try {
+        secondaryPlayerContainerRef.current.innerHTML = '';
+      } catch (error) {
+        console.error("Error clearing secondary player container:", error);
+      }
+    }
+  };
+
+  const initializeSecondaryPlayer = async () => {
+    console.log('initializeSecondaryPlayer called with:', { secondaryPlayerVideoId, containerExists: !!secondaryPlayerContainerRef.current });
+    if (!secondaryPlayerVideoId || !secondaryPlayerContainerRef.current) {
+      console.warn("Cannot initialize secondary player: missing video ID or container", { secondaryPlayerVideoId, containerExists: !!secondaryPlayerContainerRef.current });
+      return;
+    }
+
+    // Handle local files - use same logic as primary player
+    if (isLocalFile(secondaryPlayerVideoId)) {
+      const filePath = getLocalFilePath(secondaryPlayerVideoId);
+      if (!filePath) {
+        console.error("❌ Invalid local file path for secondary player:", secondaryPlayerVideoId);
+        return;
+      }
+
+      console.log("🎬 Initializing secondary local video player for:", filePath);
+      secondaryPlayerContainerRef.current.innerHTML = '';
+      const video = document.createElement('video');
+      video.style.width = '100%';
+      video.style.height = '100%';
+      video.style.objectFit = 'contain';
+      video.controls = true;
+      video.playsInline = true;
+      video.autoplay = true;
+
+      try {
+        if (isTauri) {
+          // Use same streaming logic as primary player - simplified version
+          const { readFile, metadata } = await import('@tauri-apps/plugin-fs');
+          const fileMetadata = await metadata(filePath);
+          const fileSizeMB = fileMetadata.size / (1024 * 1024);
+          
+          if (fileSizeMB > 100) {
+            // Large file: Use streaming
+            const { open } = await import('@tauri-apps/plugin-fs');
+            const streamUrl = await open(filePath, { read: true });
+            const extension = filePath.split('.').pop()?.toLowerCase();
+            const mimeType = extension === 'mp4' ? 'video/mp4' : 
+                            extension === 'webm' ? 'video/webm' :
+                            extension === 'mkv' ? 'video/x-matroska' :
+                            extension === 'mov' ? 'video/quicktime' : 'video/mp4';
+            const source = document.createElement('source');
+            source.src = streamUrl;
+            source.type = mimeType;
+            video.appendChild(source);
+            video.load();
+          } else {
+            // Small file: Use blob URL
+            const fileData = await readFile(filePath);
+            const extension = filePath.split('.').pop()?.toLowerCase();
+            const mimeTypes = {
+              'mp4': 'video/mp4',
+              'webm': 'video/webm',
+              'mkv': 'video/x-matroska',
+              'avi': 'video/x-msvideo',
+              'mov': 'video/quicktime',
+              'wmv': 'video/x-ms-wmv',
+              'flv': 'video/x-flv',
+              'm4v': 'video/x-m4v'
+            };
+            const mimeType = mimeTypes[extension] || 'video/mp4';
+            const blob = new Blob([fileData], { type: mimeType });
+            window.secondaryVideoBlobUrl = URL.createObjectURL(blob);
+            video.src = window.secondaryVideoBlobUrl;
+          }
+        } else {
+          console.warn("Secondary local video not supported in browser mode");
+          return;
+        }
+      } catch (error) {
+        console.error("Error loading secondary local video:", error);
+        return;
+      }
+
+      secondaryPlayerContainerRef.current.appendChild(video);
+      secondaryLocalVideoRef.current = video;
+      console.log("✅ Secondary local video element added");
+      return;
+    }
+
+    // YouTube videos are now handled by react-youtube component
+    // This function only handles local files for secondary player
+    console.log("initializeSecondaryPlayer called for YouTube video - using react-youtube component instead");
   };
 
   // Comprehensive debug function - collects all video playback diagnostics
@@ -6303,36 +6481,17 @@ export default function YouTubePlaylistPlayer() {
       return;
     }
 
-    // Handle YouTube videos
-    if (!window.YT) {
-      console.warn("YouTube API not loaded yet");
-      return;
-    }
-
-    playerContainerRef.current.innerHTML = '';
-    try {
-      playerRef.current = new window.YT.Player(playerContainerRef.current, {
-        height: "100%", width: "100%", videoId: currentVideoId,
-        playerVars: { autoplay: 1, controls: 1, disablekb: 1, fs: 0, iv_load_policy: 3, modestbranding: 1, playsinline: 1, rel: 0, showinfo: 0, start: getVideoProgress(currentVideoId) / (currentPlaylist.videos.find(v => v.id === currentVideoId)?.duration || 1) < 0.95 ? getVideoProgress(currentVideoId) : 0, origin: window.location.origin },
-        events: {
-          onReady: () => setIsPlayerReady(true),
-          onStateChange: (event) => {
-            if (event.data === window.YT.PlayerState.PLAYING) setIsPlaying(true);
-            else if (event.data === window.YT.PlayerState.PAUSED) {
-              setIsPlaying(false);
-              if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') saveVideoProgress(currentVideoId, playerRef.current.getCurrentTime());
-            } else if (event.data === window.YT.PlayerState.ENDED) goToNextVideo();
-          },
-          onError: (event) => {
-            console.error("YouTube player error:", event.data);
-            if ([100, 101, 150].includes(event.data)) goToNextVideo();
-          }
-        },
-      });
-    } catch (error) { console.error("Error initializing YouTube player:", error); destroyPlayer(); }
+    // YouTube videos are now handled by react-youtube component
+    // This function only handles local files
+    console.log("initializePlayer called for YouTube video - using react-youtube component instead");
   };
 
+  // Primary player initialization - now handled by react-youtube component
+  // Local files still use initializePlayer(), YouTube uses <YouTube> component
   useEffect(() => {
+    // Reset seek flag when video changes
+    hasSeekedToResume.current = false;
+    
     // For local files, initialize immediately
     if (isLocalFile(currentVideoId)) {
       initializePlayer();
@@ -6341,23 +6500,187 @@ export default function YouTubePlaylistPlayer() {
         destroyPlayer();
       };
     }
-
-    // For YouTube videos, load API if needed
-    if (!window.YT) {
-      const tag = document.createElement('script');
-      tag.src = "https://www.youtube.com/iframe_api";
-      window.onYouTubeIframeAPIReady = () => initializePlayer();
-      document.head.appendChild(tag);
-    } else {
-      initializePlayer();
-    }
+    // For YouTube videos, react-youtube component handles initialization
+    // No manual initialization needed - component handles it
     return () => {
       if (playerRef.current && currentVideoId && !isLocalFile(currentVideoId) && typeof playerRef.current.getCurrentTime === 'function') {
         saveVideoProgress(currentVideoId, playerRef.current.getCurrentTime());
       }
-      destroyPlayer();
+      // react-youtube handles cleanup automatically
+      playerRef.current = null;
+      setIsPlayerReady(false);
+      setIsPlaying(false);
     };
   }, [currentVideoId]);
+
+  // Re-initialize primary player when quarter splitscreen mode changes (container ref moves)
+  // NOTE: With react-youtube, the component handles re-rendering automatically
+  // Only need to re-initialize for local videos
+  useEffect(() => {
+    if (currentVideoId && playerContainerRef.current && isLocalFile(currentVideoId)) {
+      console.log('Quarter splitscreen mode changed, re-initializing local video player', { quarterSplitscreenMode, currentVideoId });
+      // Destroy old player first
+      destroyPlayer();
+      // Longer delay to ensure DOM has updated, container has transitioned, and old player is cleaned up
+      const timeoutId = setTimeout(() => {
+        if (playerContainerRef.current && currentVideoId) {
+          console.log('Re-initializing local video player in new container', { 
+            containerExists: !!playerContainerRef.current,
+            containerWidth: playerContainerRef.current.offsetWidth,
+            containerHeight: playerContainerRef.current.offsetHeight
+          });
+          initializePlayer();
+        } else {
+          console.warn('Cannot re-initialize player - container or video ID missing', {
+            containerExists: !!playerContainerRef.current,
+            currentVideoId
+          });
+        }
+      }, 300); // Increased delay to allow CSS transitions to complete
+      return () => clearTimeout(timeoutId);
+    }
+    // For YouTube videos, react-youtube component will automatically re-render when container moves
+  }, [quarterSplitscreenMode]);
+
+  // When side menu closes in quarter splitscreen mode, exit quarter mode and close secondary player
+  useEffect(() => {
+    // Don't close quarter mode if we're in fullscreen - let it stay hidden
+    if (!showSideMenu && quarterSplitscreenMode && !document.fullscreenElement) {
+      console.log('Side menu closed in quarter mode, exiting quarter mode and closing secondary player');
+      // Close secondary player first
+      setSecondaryPlayerVideoId(null);
+      // Reset menu quadrant mode
+      setMenuQuadrantMode(false);
+      // Small delay to ensure secondary player cleanup completes
+      setTimeout(() => {
+        setQuarterSplitscreenMode(false);
+      }, 100);
+    }
+  }, [showSideMenu, quarterSplitscreenMode]);
+
+  // Reset menu quadrant mode when side menu closes
+  useEffect(() => {
+    if (!showSideMenu) {
+      setMenuQuadrantMode(false);
+      setPlayerQuadrantMode(false);
+    }
+  }, [showSideMenu]);
+
+  // Debug player quadrant mode changes
+  useEffect(() => {
+    console.log('Player quadrant mode changed:', { 
+      playerQuadrantMode, 
+      showSideMenu, 
+      quarterSplitscreenMode,
+      shouldShowQuadrant: playerQuadrantMode && showSideMenu && !quarterSplitscreenMode
+    });
+  }, [playerQuadrantMode, showSideMenu, quarterSplitscreenMode]);
+
+  // Handle fullscreen mode - WORKAROUND: Prevent fullscreen when quarter mode is active
+  // This avoids the React/YouTube API conflict that causes crashes
+  useLayoutEffect(() => {
+    const handleFullscreenChange = () => {
+      if (document.fullscreenElement) {
+        // Entering fullscreen
+        console.log('Fullscreen entered');
+        
+        // WORKAROUND: If quarter mode is active, exit fullscreen immediately to prevent crash
+        if (quarterSplitscreenMode && secondaryPlayerVideoId) {
+          console.warn('⚠️ Fullscreen blocked - quarter splitscreen mode is active. Please close quarter mode first.');
+          // Exit fullscreen immediately to prevent crash
+          if (document.exitFullscreen) {
+            document.exitFullscreen().catch(err => console.error('Error exiting fullscreen:', err));
+          }
+          // Show user-friendly message (you can add a toast/notification here)
+          alert('Please close the second player before entering fullscreen mode to avoid crashes.');
+          return;
+        }
+        
+        // Normal fullscreen entry - reset quadrant modes
+        isInFullscreenTransition.current = true;
+        console.log('Fullscreen entered, resetting quadrant modes (container stays in DOM, cleanup disabled)');
+        
+        // Reset all modes - container will be hidden via CSS
+        setPlayerQuadrantMode(false);
+        setMenuQuadrantMode(false);
+        
+        // Clear flag after a delay to allow React to finish reconciliation
+        setTimeout(() => {
+          isInFullscreenTransition.current = false;
+        }, 500);
+      } else {
+        // Exiting fullscreen - clear flag
+        isInFullscreenTransition.current = false;
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, [quarterSplitscreenMode, secondaryPlayerVideoId]);
+
+  // Handle secondary player lifecycle for quarter splitscreen mode
+  useEffect(() => {
+    console.log('Secondary player useEffect triggered:', { 
+      quarterSplitscreenMode, 
+      secondaryPlayerVideoId, 
+      playerQuadrantMode, 
+      isFullscreen: !!document.fullscreenElement,
+      isInTransition: isInFullscreenTransition.current
+    });
+    
+    // DON'T clean up if we're in fullscreen or during fullscreen transition
+    if (!quarterSplitscreenMode && !document.fullscreenElement && !isInFullscreenTransition.current) {
+      // Clean up secondary player when mode is closed (but not in fullscreen or transition)
+      console.log('Cleaning up secondary player - mode closed (not in fullscreen/transition)');
+      // Clear container immediately to prevent React from trying to remove YouTube iframe
+      // Only clear for local videos - react-youtube handles its own cleanup
+      if (secondaryPlayerContainerRef.current && secondaryPlayerVideoId && isLocalFile(secondaryPlayerVideoId)) {
+        try {
+          secondaryPlayerContainerRef.current.innerHTML = '';
+        } catch (error) {
+          console.warn('Error clearing secondary player container:', error);
+        }
+      }
+      // Destroy player instance (only for local videos - react-youtube handles YouTube cleanup)
+      destroySecondaryPlayer();
+      // Clear state
+      setSecondaryPlayerVideoId(null);
+      return;
+    }
+    
+    // If in fullscreen or transition, don't initialize or clean up - just let container stay hidden
+    if (document.fullscreenElement || isInFullscreenTransition.current) {
+      console.log('Skipping secondary player operations - in fullscreen mode or transition');
+      return;
+    }
+
+    // Initialize secondary player if video ID is set
+    if (secondaryPlayerVideoId) {
+      console.log('Secondary player video ID set:', secondaryPlayerVideoId);
+      if (isLocalFile(secondaryPlayerVideoId)) {
+        console.log('Secondary player is local file - initializing');
+        // Small delay to ensure container is in DOM
+        const timeoutId = setTimeout(() => {
+          if (secondaryPlayerContainerRef.current) {
+            initializeSecondaryPlayer();
+          }
+        }, playerQuadrantMode ? 100 : 0);
+        return () => {
+          clearTimeout(timeoutId);
+          console.log('Secondary player cleanup (local file)');
+          destroySecondaryPlayer();
+        };
+      } else {
+        // For YouTube videos, react-youtube component handles initialization automatically
+        console.log('Secondary player is YouTube video - using react-youtube component');
+        // No manual initialization needed - component handles it
+      }
+    } else {
+      console.log('No secondary player video ID set yet');
+    }
+  }, [quarterSplitscreenMode, secondaryPlayerVideoId, playerQuadrantMode]);
 
   useEffect(() => {
     let interval;
@@ -6369,6 +6692,117 @@ export default function YouTubePlaylistPlayer() {
     }
     return () => clearInterval(interval);
   }, [isPlaying, currentVideoId]);
+
+  // Floating window drag handler
+  useEffect(() => {
+    if (!isDraggingWindow) return;
+
+    const handleMouseMove = (e) => {
+      const deltaX = e.clientX - dragStart.x;
+      const deltaY = e.clientY - dragStart.y;
+      setFloatingWindowPosition(prev => ({
+        x: prev.x + deltaX,
+        y: prev.y + deltaY
+      }));
+      setDragStart({ x: e.clientX, y: e.clientY });
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingWindow(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDraggingWindow, dragStart]);
+
+  // Floating window resize handler
+  useEffect(() => {
+    if (!isResizingWindow) return;
+
+    const handleMouseMove = (e) => {
+      const deltaX = e.clientX - resizeStart.x;
+      const deltaY = e.clientY - resizeStart.y;
+      setFloatingWindowSize(prev => ({
+        width: Math.max(300, resizeStart.width + deltaX),
+        height: Math.max(200, resizeStart.height + deltaY)
+      }));
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingWindow(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizingWindow, resizeStart]);
+
+  // Main player window drag handler
+  useEffect(() => {
+    if (!isDraggingMainWindow) return;
+
+    const handleMouseMove = (e) => {
+      const deltaX = e.clientX - mainWindowDragStart.x;
+      const deltaY = e.clientY - mainWindowDragStart.y;
+      setMainPlayerWindowPosition(prev => ({
+        x: prev.x + deltaX,
+        y: prev.y + deltaY
+      }));
+      setMainWindowDragStart({ x: e.clientX, y: e.clientY });
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingMainWindow(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDraggingMainWindow, mainWindowDragStart]);
+
+  // Main player window resize handler
+  useEffect(() => {
+    if (!isResizingMainWindow) return;
+
+    const handleMouseMove = (e) => {
+      const deltaX = e.clientX - mainWindowResizeStart.x;
+      const deltaY = e.clientY - mainWindowResizeStart.y;
+      setMainPlayerWindowSize(prev => ({
+        width: Math.max(400, mainWindowResizeStart.width + deltaX),
+        height: Math.max(300, mainWindowResizeStart.height + deltaY)
+      }));
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingMainWindow(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizingMainWindow, mainWindowResizeStart]);
+
+  // Initialize floating window player
+  useEffect(() => {
+    if (!floatingWindowVideoId || !floatingPlayerContainerRef.current) return;
+
+    // For YouTube videos, react-youtube will handle it via JSX
+    // For local files, we'd need to handle them separately if needed
+    console.log('Floating window player initialized for:', floatingWindowVideoId);
+  }, [floatingWindowVideoId]);
 
   // Effect to calculate average color from thumbnail for the top video menu background
   useEffect(() => {
@@ -6586,17 +7020,246 @@ export default function YouTubePlaylistPlayer() {
   }
 
   return (
-    <div className="h-screen w-screen bg-black relative overflow-hidden flex font-sans">
-      <div className={`transition-all duration-500 ease-in-out ${showSideMenu ? 'w-1/2' : 'w-full'}`}>
-        <div ref={playerContainerRef} className="relative w-full h-full" />
+    <div className="h-screen w-screen bg-black relative overflow-hidden font-sans">
+      {/* Main Player Window - windowed by default */}
+      {currentVideoId && (
+        <div
+          ref={mainPlayerWindowRef}
+          className="fixed bg-gray-800 border-2 border-gray-600 rounded-t-lg overflow-hidden shadow-2xl flex flex-col z-40"
+          style={{
+            left: `${mainPlayerWindowPosition.x}px`,
+            top: `${mainPlayerWindowPosition.y}px`,
+            width: `${mainPlayerWindowSize.width}px`,
+            height: `${mainPlayerWindowSize.height}px`,
+            cursor: isDraggingMainWindow ? 'grabbing' : 'default'
+          }}
+        >
+          {/* Title bar - draggable */}
+          <div
+            className="relative bg-gray-700 border-b border-gray-600 px-3 py-1.5 flex items-center justify-between z-30 flex-shrink-0 cursor-grab active:cursor-grabbing"
+            onMouseDown={(e) => {
+              setIsDraggingMainWindow(true);
+              setMainWindowDragStart({ x: e.clientX, y: e.clientY });
+            }}
+          >
+            <span className="text-white text-xs font-medium truncate flex-1">
+              {getVideoTitle(currentVideoId)}
+            </span>
+            <button
+              onClick={() => {
+                // Don't allow closing main player - just minimize or handle differently
+                // For now, we'll keep it open
+              }}
+              className="ml-2 p-1 hover:bg-gray-600 rounded text-white transition-colors flex-shrink-0 opacity-50 cursor-not-allowed"
+              title="Main player cannot be closed"
+              disabled
+            >
+              <X size={14} />
+            </button>
+          </div>
+          {/* Player content */}
+          <div
+            ref={playerContainerRef}
+            className="relative w-full flex-1 min-h-0 bg-black"
+            style={{ overflow: 'hidden' }}
+          >
+            {/* YouTube player using react-youtube */}
+            {currentVideoId && !isLocalFile(currentVideoId) && (
+              <YouTube
+                key={currentVideoId}
+                videoId={currentVideoId}
+                opts={{
+                  height: '100%',
+                  width: '100%',
+                  playerVars: {
+                    autoplay: 1,
+                    controls: 1,
+                    disablekb: 1,
+                    fs: 0,
+                    iv_load_policy: 3,
+                    modestbranding: 1,
+                    playsinline: 1,
+                    rel: 0,
+                    showinfo: 0,
+                    origin: typeof window !== 'undefined' ? window.location.origin : ''
+                  }
+                }}
+                onReady={(event) => {
+                  playerRef.current = event.target;
+                  setIsPlayerReady(true);
+                  
+                  // Seek to resume position if available (only once per video load)
+                  if (!hasSeekedToResume.current) {
+                    const resumeTime = getVideoProgress(currentVideoId);
+                    const videoDuration = currentPlaylist.videos.find(v => v.id === currentVideoId)?.duration || 1;
+                    // Only seek if we have progress and it's not near the end (within 95%)
+                    if (resumeTime > 0 && resumeTime / videoDuration < 0.95) {
+                      try {
+                        event.target.seekTo(resumeTime, true);
+                        console.log('Seeking to resume position:', resumeTime);
+                      } catch (error) {
+                        console.error('Error seeking to resume position:', error);
+                      }
+                    }
+                    hasSeekedToResume.current = true;
+                  }
+                }}
+                onStateChange={(event) => {
+                  if (event.data === 1) { // PLAYING
+                    setIsPlaying(true);
+                  } else if (event.data === 2) { // PAUSED
+                    setIsPlaying(false);
+                    if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
+                      saveVideoProgress(currentVideoId, playerRef.current.getCurrentTime());
+                    }
+                  } else if (event.data === 0) { // ENDED
+                    goToNextVideo();
+                  }
+                }}
+                onError={(event) => {
+                  console.error("YouTube player error:", event.data);
+                  if ([100, 101, 150].includes(event.data)) {
+                    goToNextVideo();
+                  }
+                }}
+                className="absolute inset-0 w-full h-full"
+              />
+            )}
+          </div>
+          {/* Resize handle */}
+          <div
+            className="absolute bottom-0 right-0 w-4 h-4 bg-gray-600 cursor-nwse-resize"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setIsResizingMainWindow(true);
+              setMainWindowResizeStart({
+                x: e.clientX,
+                y: e.clientY,
+                width: mainPlayerWindowSize.width,
+                height: mainPlayerWindowSize.height
+              });
+            }}
+            style={{
+              clipPath: 'polygon(100% 0, 100% 100%, 0 100%)'
+            }}
+          />
+        </div>
+      )}
+      
+      {/* Secondary player container - ALWAYS RENDER (NO CONDITIONS) - position and visibility with CSS only */}
+      {/* This prevents React from EVER trying to unmount it - container is permanent in DOM */}
+      <div 
+        className={`absolute transition-all duration-500 ease-in-out ${
+          quarterSplitscreenMode && secondaryPlayerVideoId && !document.fullscreenElement ? (
+            playerQuadrantMode && showSideMenu ? 'bottom-0 right-0 w-1/2 h-1/2' : 'bottom-0 left-0 w-1/2 h-1/2'
+          ) : 'hidden pointer-events-none opacity-0'
+        }`}
+        style={{
+          zIndex: quarterSplitscreenMode && secondaryPlayerVideoId && !document.fullscreenElement ? 10 : -1,
+          display: quarterSplitscreenMode && secondaryPlayerVideoId && !document.fullscreenElement ? 'block' : 'none'
+        }}
+      >
+        {/* Window-style container with border and title bar */}
+        <div className="relative w-full h-full min-h-0 bg-gray-800 border-2 border-gray-600 rounded-t-lg overflow-hidden shadow-2xl flex flex-col">
+          {/* Title bar - desktop window style */}
+          <div className="relative bg-gray-700 border-b border-gray-600 px-3 py-1.5 flex items-center justify-between z-30 flex-shrink-0">
+            <span className="text-white text-xs font-medium truncate flex-1">
+              {getVideoTitle(secondaryPlayerVideoId)}
+            </span>
+            <button
+              onClick={() => {
+                console.log('Closing secondary player');
+                setSecondaryPlayerVideoId(null);
+              }}
+              className="ml-2 p-1 hover:bg-red-600 rounded text-white transition-colors flex-shrink-0"
+              title="Close Player 2"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          {/* Secondary player container - using react-youtube for YouTube videos */}
+          <div
+            ref={secondaryPlayerContainerRef}
+            className="relative w-full flex-1 min-h-0 bg-black"
+            style={{ overflow: 'hidden' }}
+          >
+            {/* YouTube player using react-youtube - handles lifecycle better */}
+            {secondaryPlayerVideoId && !isLocalFile(secondaryPlayerVideoId) && (
+              <YouTube
+                videoId={secondaryPlayerVideoId}
+                opts={{
+                  height: '100%',
+                  width: '100%',
+                  playerVars: {
+                    autoplay: 1,
+                    controls: 1,
+                    disablekb: 1,
+                    fs: 0,
+                    iv_load_policy: 3,
+                    modestbranding: 1,
+                    playsinline: 1,
+                    rel: 0,
+                    showinfo: 0,
+                    origin: typeof window !== 'undefined' ? window.location.origin : ''
+                  }
+                }}
+                onReady={(event) => {
+                  secondaryPlayerRef.current = event.target;
+                  console.log('Secondary YouTube player ready');
+                }}
+                onStateChange={(event) => {
+                  // Handle secondary player state changes if needed
+                  console.log('Secondary player state changed:', event.data);
+                }}
+                onError={(event) => {
+                  console.error("Secondary YouTube player error:", event.data);
+                }}
+                className="absolute inset-0 w-full h-full"
+              />
+            )}
+          </div>
+        </div>
       </div>
       
-      <div 
-        className={`transition-all duration-500 ease-in-out backdrop-blur-sm overflow-y-auto ${showSideMenu ? 'w-1/2' : 'w-0'}`}
-        style={{ backgroundColor: showSideMenu ? averageColor : 'transparent' }}
-      >
+      {/* Left side - now just black space since main player is windowed */}
+      <div className={`transition-all duration-500 ease-in-out h-full bg-black ${quarterSplitscreenMode ? 'w-1/2' : showSideMenu ? 'w-1/2' : 'w-full'}`}>
+        {/* Quarter splitscreen mode: two players in left quadrants */}
+        {quarterSplitscreenMode ? (
+          <div 
+            className={`relative w-full h-full transition-all duration-500 ease-in-out ${
+              playerQuadrantMode && secondaryPlayerVideoId ? 'flex flex-col' : 'flex flex-col'
+            }`}
+          >
+            {/* Black top section - only visible in quadrant mode with 2 players */}
+            <div 
+              className={`w-full bg-black transition-all duration-500 ease-in-out ${
+                playerQuadrantMode && secondaryPlayerVideoId ? 'h-1/2 flex-shrink-0' : 'h-0 hidden'
+              }`}
+            />
+            {/* Main player is now windowed - this area is just black space when in quarter mode */}
+            <div className="w-full h-full bg-black" />
+          </div>
+        ) : (
+          /* Normal mode - main player is now windowed, this is just black space */
+          <div className="w-full h-full bg-black" />
+        )}
+      </div>
+      
+      {/* Right side container - menu and secondary player (when in playerQuadrantMode with 2 players) */}
+      {/* ALWAYS render to prevent React unmount conflicts - control visibility with CSS */}
+      <div className={`relative transition-all duration-500 ease-in-out ${showSideMenu ? 'w-1/2' : 'w-0 overflow-hidden'}`}>
+        {/* Menu container */}
+        <div 
+          className={`transition-all duration-500 ease-in-out backdrop-blur-sm overflow-y-auto ${showSideMenu ? (
+            playerQuadrantMode && secondaryPlayerVideoId && quarterSplitscreenMode ? 'w-full absolute top-0 right-0 h-1/2' : 
+            menuQuadrantMode ? 'w-full absolute bottom-0 right-0 h-1/2' : 'w-full'
+          ) : 'w-0'}`}
+          style={{ 
+            backgroundColor: showSideMenu ? averageColor : 'transparent'
+          }}
+        >
         {showSideMenu && (
-          <div className="p-4 relative pt-20">
+          <div className={`p-4 relative ${menuQuadrantMode ? 'pt-4' : 'pt-20'}`}>
             {showSideMenu === 'playlists' && (
               <>
                 <div className="sticky top-0 bg-black/80 backdrop-blur-sm z-30 pt-4 -mx-4 px-4 pb-2">
@@ -7686,6 +8349,9 @@ export default function YouTubePlaylistPlayer() {
             )}
           </div>
         )}
+        </div>
+        
+        {/* Secondary player is now rendered at root level to prevent unmount issues */}
       </div>
 
       {/* Context Menu */}
@@ -7736,11 +8402,49 @@ export default function YouTubePlaylistPlayer() {
             >
               Move to Playlist
             </button>
-            <button 
+            <button
               onClick={() => handlePinVideo(contextMenuVideo)}
               className="px-3 py-2 text-white hover:bg-white/10 rounded text-sm"
             >
               {pinnedVideos.some(p => p.id === contextMenuVideo.id) ? 'Unpin' : 'Pin'}
+            </button>
+            <button
+              onClick={() => {
+                console.log('Add to 2nd Player clicked, video ID:', contextMenuVideo.id);
+                // If not in quarter splitscreen mode, switch to it first
+                if (!quarterSplitscreenMode) {
+                  setQuarterSplitscreenMode(true);
+                }
+                // Set the secondary player video ID
+                setSecondaryPlayerVideoId(contextMenuVideo.id);
+                setContextMenuVideo(null);
+                console.log('Secondary player video ID set to:', contextMenuVideo.id);
+              }}
+              disabled={!!floatingWindowVideoId}
+              className={`px-3 py-2 rounded text-sm ${
+                floatingWindowVideoId 
+                  ? 'text-white/40 cursor-not-allowed' 
+                  : 'text-white hover:bg-white/10'
+              }`}
+              title={floatingWindowVideoId ? 'Close floating window first (max 2 players)' : 'Add to 2nd Player'}
+            >
+              Add to 2nd Player
+            </button>
+            <button
+              onClick={() => {
+                console.log('2nd Window Player clicked, video ID:', contextMenuVideo.id);
+                setFloatingWindowVideoId(contextMenuVideo.id);
+                setContextMenuVideo(null);
+              }}
+              disabled={!!secondaryPlayerVideoId}
+              className={`px-3 py-2 rounded text-sm ${
+                secondaryPlayerVideoId 
+                  ? 'text-white/40 cursor-not-allowed' 
+                  : 'text-white hover:bg-white/10'
+              }`}
+              title={secondaryPlayerVideoId ? 'Close 2nd player first (max 2 players)' : '2nd Window Player'}
+            >
+              2nd Window Player
             </button>
             {!bulkMode && (() => {
               // Find the playlist containing this video
@@ -7763,6 +8467,109 @@ export default function YouTubePlaylistPlayer() {
               ) : null;
             })()}
           </div>
+        </div>
+      )}
+
+      {/* Floating Window Player */}
+      {floatingWindowVideoId && (
+        <div
+          ref={floatingWindowRef}
+          className="fixed bg-gray-800 border-2 border-gray-600 rounded-t-lg overflow-hidden shadow-2xl flex flex-col z-50"
+          style={{
+            left: `${floatingWindowPosition.x}px`,
+            top: `${floatingWindowPosition.y}px`,
+            width: `${floatingWindowSize.width}px`,
+            height: `${floatingWindowSize.height}px`,
+            cursor: isDraggingWindow ? 'grabbing' : 'default'
+          }}
+        >
+          {/* Title bar - draggable */}
+          <div
+            className="relative bg-gray-700 border-b border-gray-600 px-3 py-1.5 flex items-center justify-between z-30 flex-shrink-0 cursor-grab active:cursor-grabbing"
+            onMouseDown={(e) => {
+              setIsDraggingWindow(true);
+              setDragStart({ x: e.clientX, y: e.clientY });
+            }}
+          >
+            <span className="text-white text-xs font-medium truncate flex-1">
+              {getVideoTitle(floatingWindowVideoId)}
+            </span>
+            <button
+              onClick={() => {
+                setFloatingWindowVideoId(null);
+                if (floatingPlayerRef.current && typeof floatingPlayerRef.current.destroy === 'function') {
+                  try {
+                    floatingPlayerRef.current.destroy();
+                  } catch (error) {
+                    console.error('Error destroying floating player:', error);
+                  }
+                }
+                floatingPlayerRef.current = null;
+              }}
+              className="ml-2 p-1 hover:bg-red-600 rounded text-white transition-colors flex-shrink-0"
+              title="Close Window"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          {/* Player content */}
+          <div
+            ref={floatingPlayerContainerRef}
+            className="relative w-full flex-1 min-h-0 bg-black"
+            style={{ overflow: 'hidden' }}
+          >
+            {/* YouTube player using react-youtube */}
+            {floatingWindowVideoId && !isLocalFile(floatingWindowVideoId) && (
+              <YouTube
+                key={floatingWindowVideoId}
+                videoId={floatingWindowVideoId}
+                opts={{
+                  height: '100%',
+                  width: '100%',
+                  playerVars: {
+                    autoplay: 1,
+                    controls: 1,
+                    disablekb: 1,
+                    fs: 0,
+                    iv_load_policy: 3,
+                    modestbranding: 1,
+                    playsinline: 1,
+                    rel: 0,
+                    showinfo: 0,
+                    origin: typeof window !== 'undefined' ? window.location.origin : ''
+                  }
+                }}
+                onReady={(event) => {
+                  floatingPlayerRef.current = event.target;
+                  console.log('Floating window player ready');
+                }}
+                onStateChange={(event) => {
+                  console.log('Floating player state changed:', event.data);
+                }}
+                onError={(event) => {
+                  console.error("Floating YouTube player error:", event.data);
+                }}
+                className="absolute inset-0 w-full h-full"
+              />
+            )}
+          </div>
+          {/* Resize handle */}
+          <div
+            className="absolute bottom-0 right-0 w-4 h-4 bg-gray-600 cursor-nwse-resize"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setIsResizingWindow(true);
+              setResizeStart({
+                x: e.clientX,
+                y: e.clientY,
+                width: floatingWindowSize.width,
+                height: floatingWindowSize.height
+              });
+            }}
+            style={{
+              clipPath: 'polygon(100% 0, 100% 100%, 0 100%)'
+            }}
+          />
         </div>
       )}
 
@@ -7838,6 +8645,50 @@ export default function YouTubePlaylistPlayer() {
             <span className="font-semibold text-sm w-48 truncate text-center">{currentPlaylist.name || "..."}</span>
             <button onClick={goToNextPlaylist} className="p-1 hover:bg-white/20 rounded-md"><ChevronRight size={20} /></button>
             <button onClick={() => setShowSideMenu(showSideMenu === 'playlists' ? null : 'playlists')} className="p-2 rounded-full bg-white/10 hover:bg-white/20"><Grid3X3 size={16} /></button>
+            {(showSideMenu || quarterSplitscreenMode) && (
+              <div
+                className="relative"
+                onMouseEnter={() => {
+                  if (playerQuadrantHoverTimer.current) clearTimeout(playerQuadrantHoverTimer.current);
+                  playerQuadrantHoverTimer.current = setTimeout(() => {
+                    if (showSideMenu || quarterSplitscreenMode) {
+                      console.log('Player quadrant mode activated', { 
+                        showSideMenu, 
+                        quarterSplitscreenMode, 
+                        showSideMenuType: typeof showSideMenu,
+                        showSideMenuTruthy: !!showSideMenu
+                      });
+                      setPlayerQuadrantMode(true);
+                      // Force a re-render check
+                      setTimeout(() => {
+                        console.log('State after set:', { playerQuadrantMode: true });
+                      }, 100);
+                    } else {
+                      console.log('Player quadrant mode NOT activated - conditions not met', { 
+                        showSideMenu, 
+                        quarterSplitscreenMode 
+                      });
+                    }
+                  }, 2000);
+                }}
+                onMouseLeave={() => {
+                  if (playerQuadrantHoverTimer.current) {
+                    clearTimeout(playerQuadrantHoverTimer.current);
+                    playerQuadrantHoverTimer.current = null;
+                  }
+                  // Return players to normal position when hovering stops
+                  console.log('Player quadrant mode deactivated');
+                  setPlayerQuadrantMode(false);
+                }}
+              >
+                <button
+                  className={`p-2 rounded-full transition-colors ${playerQuadrantMode ? 'bg-blue-500' : 'bg-white/10 hover:bg-white/20'}`}
+                  title="Hover 2 seconds to push players to bottom quadrants"
+                >
+                  <MoveDown size={16} />
+                </button>
+              </div>
+            )}
           </div>
           {/* Tab Cycler */}
           {playlistTabs.length > 1 && (
@@ -7954,6 +8805,36 @@ export default function YouTubePlaylistPlayer() {
             <button onClick={() => setShowSideMenu(showSideMenu === 'history' ? null : 'history')} className={`p-2 rounded-full transition-colors ${showSideMenu === 'history' ? 'bg-blue-500' : 'bg-white/10 hover:bg-white/20'}`}><Clock size={16} /></button>
             <button onClick={handleFolderCycleClick} className={`p-2 rounded-full transition-colors ${chronologicalFilter !== 'all' ? groupColors[chronologicalFilter] : 'bg-blue-500'}`}><Play size={16} /></button>
                 <button onClick={() => startNewShuffle()} className={`p-2 rounded-full bg-blue-500 hover:bg-blue-600`} title="Regenerate shuffle order for current filter"><Shuffle size={16} /></button>
+                {(showSideMenu || quarterSplitscreenMode) && (
+                  <div
+                    className="relative"
+                    onMouseEnter={() => {
+                      // Don't activate menu quadrant mode if player quadrant mode is active with 2 players
+                      if (playerQuadrantMode && secondaryPlayerVideoId && quarterSplitscreenMode) return;
+                      if (menuQuadrantHoverTimer.current) clearTimeout(menuQuadrantHoverTimer.current);
+                      menuQuadrantHoverTimer.current = setTimeout(() => {
+                        if (showSideMenu || quarterSplitscreenMode) {
+                          setMenuQuadrantMode(true);
+                        }
+                      }, 2000);
+                    }}
+                    onMouseLeave={() => {
+                      if (menuQuadrantHoverTimer.current) {
+                        clearTimeout(menuQuadrantHoverTimer.current);
+                        menuQuadrantHoverTimer.current = null;
+                      }
+                      // Return menu to normal half size when hovering stops
+                      setMenuQuadrantMode(false);
+                    }}
+                  >
+                    <button
+                      className={`p-2 rounded-full transition-colors ${menuQuadrantMode ? 'bg-blue-500' : 'bg-white/10 hover:bg-white/20'}`}
+                      title="Hover 2 seconds to shrink menu to bottom right quadrant"
+                    >
+                      <CornerDownRight size={16} />
+                    </button>
+                  </div>
+                )}
                 <button onClick={wipeColoredFoldersAndPlaylists} className={`p-2 rounded-full bg-red-500 hover:bg-red-600`} title="Wipe colored folders and added playlists (preserves tabs)"><Trash2 size={16} /></button>
                 <div className="relative settings-menu">
                   <button 
@@ -8004,6 +8885,20 @@ export default function YouTubePlaylistPlayer() {
                         className="w-full text-left px-3 py-2 text-red-400 hover:bg-red-500/20 rounded text-sm"
                       >
                         Reset Configuration
+                      </button>
+                      <div className="border-t border-white/10 my-2"></div>
+                      <button
+                        onClick={() => {
+                          setQuarterSplitscreenMode(!quarterSplitscreenMode);
+                          setShowSettingsMenu(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded text-sm ${
+                          quarterSplitscreenMode 
+                            ? 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30' 
+                            : 'text-white hover:bg-white/10'
+                        }`}
+                      >
+                        {quarterSplitscreenMode ? 'Exit Quarter Splitscreen' : 'Quarter Splitscreen Mode'}
                       </button>
                       <div className="border-t border-white/10 my-2"></div>
                       <button

@@ -14,80 +14,115 @@ git add .
 # AI analyzes all changes since last push and updates this message
 $tempFile = "commit-msg-temp.txt"
 $commitMessage = @"
-[AI] Major Feature: Large Local Video Streaming Solution (500MB+ files now work!)
+[AI] Major Feature: Windowed Players, Quadrant Modes, and react-youtube Integration
 
-User Request: "alright. can you do a big documentation update on how we were finally able to get large local files working. also update the git push plugin for description to reflect the updates so I can run myself in terminal."
+User Request: Implementation of windowed video players, quadrant layout modes, and resolution of persistent React/YouTube API conflicts.
 
-Problem Solved:
-- Large video files (500MB+) were causing 8GB+ memory spikes and app crashes
-- H.265/HEVC encoded files showed audio-only playback (browsers don't support H.265)
-- MP4 files with moov atom at end couldn't stream (browser needs metadata at start)
-- FFmpeg couldn't overwrite same file on Windows (file locking issues)
+Major Features Implemented:
 
-Complete Solution Implemented:
+1. react-youtube Integration (Critical Fix):
+   - Replaced raw YouTube IFrame API with react-youtube component
+   - SOLVED persistent "removeChild" errors that were crashing the app
+   - Better React lifecycle management - no more DOM conflicts
+   - Both primary and secondary players now use react-youtube
+   - Video playback reset issue fixed (using key prop + seekTo instead of start parameter)
 
-1. Mini HTTP Server (Rust - tiny_http):
-   - Lightweight streaming server on 127.0.0.1 (random port)
-   - HTTP Range request support (206 Partial Content)
-   - Proper MIME type detection and Content-Range headers
-   - Streams only requested byte chunks (no memory load)
-   - CSP configured to allow local HTTP requests
+2. Window-Style UI for All Players:
+   - Desktop window appearance with borders, title bars, and close buttons
+   - Full border around each player window (border-2 border-gray-600)
+   - Title bar at top showing video title
+   - Close button (X) in top-right corner
+   - Gray color scheme matching desktop applications
+   - Shadow effects for depth (shadow-2xl)
+   - Removed legacy black boxes with "Player 1"/"Player 2" labels
 
-2. Faststart Preprocessing (FFmpeg):
-   - Automatically moves moov atom to beginning of MP4 files
-   - Applied to files >50MB when added to playlist
-   - Uses temp file approach (required on Windows)
-   - Fast: 5-20 seconds for 400MB files (no re-encoding)
-   - Multi-strategy fallback (direct overwrite → temp file → repair mode)
+3. Windowed Main Player (Default Mode):
+   - Main player now starts in resizable, draggable window mode
+   - Default size: 800x600px at position (50, 50)
+   - Draggable via title bar (cursor-grab)
+   - Resizable via bottom-right corner handle
+   - Black space behind when resized smaller than full screen
+   - Video scales with window size automatically
+   - Close button disabled (main player cannot be closed)
 
-3. H.265 to H.264 Auto-Conversion:
-   - Detects H.265/HEVC codec automatically
-   - Converts to browser-compatible H.264 (x264)
-   - Adds faststart during conversion
-   - Replaces original file (in-place conversion)
-   - Takes 5-15 minutes per file (re-encoding required)
+4. Floating Window Player ("2nd Window Player"):
+   - New menu option in context menu (3-dot menu)
+   - Creates resizable, draggable floating window
+   - Overlays main player content
+   - Same window styling as main player
+   - Can be closed independently
+   - Video scales with window resize
 
-4. Smart File Size Detection:
-   - Files >100MB: Always use streaming
-   - MP4 files >50MB: Use streaming
-   - Files <50MB: Use blob URLs (acceptable memory)
-   - Web-ready files: Always use streaming
+5. Quadrant Mode Features:
+   - Menu Quadrant Mode: Hover 2 seconds on CornerDownRight button → menu shrinks to bottom-right quadrant
+   - Player Quadrant Mode: Hover 2 seconds on MoveDown button → player shrinks to bottom-left quadrant
+   - Smooth 500ms transitions with ease-in-out
+   - Automatically reverts when hover ends
+   - Works with single player + side menu configuration
 
-5. Video Element Setup:
-   - Creates <source> element with explicit MIME type
-   - Proper error handling and metadata timeout detection
-   - Automatic retry with faststart if metadata doesn't load
+6. 2-Player Limit Enforcement (Hard Rule):
+   - Maximum 2 players allowed at once
+   - "Add to 2nd Player" option disabled when floating window is active
+   - "2nd Window Player" option disabled when quarter splitscreen mode is active
+   - Menu options show disabled state with tooltips explaining the limit
+   - Prevents UI clutter and performance issues
 
-Technical Details:
-- Added Rust dependencies: tiny_http, urlencoding, mime_guess
-- FFmpeg commands: -f mp4 flag required for temp files
-- CSP updated: http://127.0.0.1:* allowed in media-src
-- Codec detection: Uses ffprobe to check video codec
-- Error handling: Comprehensive logging and fallback strategies
+7. Video Playback Improvements:
+   - Fixed video resetting to 0:00 during playback
+   - Fixed video resetting to 0:00 when pausing
+   - Uses key prop to prevent unnecessary re-renders
+   - seekTo() in onReady handler for resume position (instead of start parameter)
+   - hasSeekedToResume ref prevents multiple seeks per video load
+
+Technical Implementation:
+
+State Management:
+- Added floatingWindowVideoId, floatingWindowPosition, floatingWindowSize
+- Added mainPlayerWindowPosition, mainPlayerWindowSize
+- Added isDraggingWindow, isResizingWindow, isDraggingMainWindow, isResizingMainWindow
+- Added drag/resize handlers with useEffect hooks
+
+Refs Added:
+- mainPlayerWindowRef, floatingWindowRef
+- floatingPlayerRef, floatingPlayerContainerRef
+
+Event Handlers:
+- Drag handlers for both main and floating windows
+- Resize handlers with minimum size constraints (300x200 for floating, 400x300 for main)
+- Mouse move/up event listeners for smooth dragging/resizing
+
+UI Components:
+- Window containers with flex-col layout
+- Title bars with flex layout (title + close button)
+- Resize handles with diagonal cursor (nwse-resize)
+- Black background behind windowed players
 
 Files Modified:
-- src-tauri/src/main.rs: HTTP server implementation, get_video_debug_info command
-- src-tauri/src/db.rs: add_faststart_in_place, convert_hevc_to_h264 functions
-- app/page.jsx: Video initialization, streaming logic, codec detection, H.265 conversion
-- src-tauri/tauri.conf.json: CSP configuration for local HTTP server
-- src-tauri/Cargo.toml: Added tiny_http, urlencoding, mime_guess dependencies
-- LARGE-VIDEO-STREAMING-SOLUTION.md: Complete documentation (NEW)
-- LARGE-VIDEO-PLAYBACK-ISSUE.md: Problem analysis document (updated)
-- push-to-github.ps1: Updated commit message
+- app/page.jsx: Complete refactor of player rendering
+  * Replaced YT.Player with react-youtube component
+  * Added windowed main player container
+  * Added floating window player container
+  * Added drag/resize handlers
+  * Added 2-player limit logic to context menu
+  * Removed legacy black box UI elements
+  * Fixed video playback reset issues
+- package.json: Added react-youtube dependency (v10.1.0)
+- QUADRANT-MODE-SUMMARY.md: Updated with all new features and status
 
 Key Results:
-✅ Large files (500MB+) now stream without memory spikes
-✅ No app crashes with large video files
-✅ H.265 files automatically converted to H.264
-✅ Faststart applied automatically for streaming compatibility
-✅ Smooth playback, seeking, and controls work perfectly
-✅ Entire playlists of 500MB videos working flawlessly
+✅ No more "removeChild" crashes - react-youtube handles React lifecycle properly
+✅ All players have desktop window styling
+✅ Main player windowed by default - resizable and draggable
+✅ Floating window player feature working
+✅ 2-player limit enforced with UI feedback
+✅ Video playback stable - no more resets to 0:00
+✅ Quadrant modes working smoothly
+✅ Legacy UI elements removed
 
-Supported Formats:
-✅ MP4 with H.264 - Fully supported, streaming works
-✅ WebM with VP8/VP9 - Should work (streaming-friendly, no faststart needed)
-⚠️ MP4 with H.265 - Auto-converts to H.264
-⚠️ MKV - Can convert to MP4 (existing functionality)
+Breaking Changes:
+- Main player is now always windowed (no longer full-width by default)
+- Left side area is now black space when main player is windowed
+- Context menu options now have disabled states based on player count
 "@
 
 # Write to temp file
