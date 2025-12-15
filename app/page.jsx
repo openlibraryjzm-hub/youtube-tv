@@ -655,6 +655,7 @@ export default function YouTubePlaylistPlayer() {
   // Main player window state (windowed by default)
   const [mainPlayerWindowPosition, setMainPlayerWindowPosition] = useState({ x: 50, y: 50 });
   const [mainPlayerWindowSize, setMainPlayerWindowSize] = useState({ width: 800, height: 600 });
+  const [mainPlayerFullSize, setMainPlayerFullSize] = useState({ width: 800, height: 600 }); // Store full size when menu is closed
   const [isDraggingMainWindow, setIsDraggingMainWindow] = useState(false);
   const [isResizingMainWindow, setIsResizingMainWindow] = useState(false);
   const [mainWindowDragStart, setMainWindowDragStart] = useState({ x: 0, y: 0 });
@@ -6777,10 +6778,15 @@ export default function YouTubePlaylistPlayer() {
     const handleMouseMove = (e) => {
       const deltaX = e.clientX - mainWindowResizeStart.x;
       const deltaY = e.clientY - mainWindowResizeStart.y;
-      setMainPlayerWindowSize(prev => ({
+      const newSize = {
         width: Math.max(400, mainWindowResizeStart.width + deltaX),
         height: Math.max(300, mainWindowResizeStart.height + deltaY)
-      }));
+      };
+      setMainPlayerWindowSize(newSize);
+      // Update full size if menu is closed (so scaling works correctly)
+      if (!showSideMenu) {
+        setMainPlayerFullSize(newSize);
+      }
     };
 
     const handleMouseUp = () => {
@@ -6793,7 +6799,9 @@ export default function YouTubePlaylistPlayer() {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isResizingMainWindow, mainWindowResizeStart]);
+  }, [isResizingMainWindow, mainWindowResizeStart, showSideMenu]);
+
+  // Removed: Dynamic window scaling - main player is no longer windowed by default
 
   // Initialize floating window player
   useEffect(() => {
@@ -7020,132 +7028,7 @@ export default function YouTubePlaylistPlayer() {
   }
 
   return (
-    <div className="h-screen w-screen bg-black relative overflow-hidden font-sans">
-      {/* Main Player Window - windowed by default */}
-      {currentVideoId && (
-        <div
-          ref={mainPlayerWindowRef}
-          className="fixed bg-gray-800 border-2 border-gray-600 rounded-t-lg overflow-hidden shadow-2xl flex flex-col z-40"
-          style={{
-            left: `${mainPlayerWindowPosition.x}px`,
-            top: `${mainPlayerWindowPosition.y}px`,
-            width: `${mainPlayerWindowSize.width}px`,
-            height: `${mainPlayerWindowSize.height}px`,
-            cursor: isDraggingMainWindow ? 'grabbing' : 'default'
-          }}
-        >
-          {/* Title bar - draggable */}
-          <div
-            className="relative bg-gray-700 border-b border-gray-600 px-3 py-1.5 flex items-center justify-between z-30 flex-shrink-0 cursor-grab active:cursor-grabbing"
-            onMouseDown={(e) => {
-              setIsDraggingMainWindow(true);
-              setMainWindowDragStart({ x: e.clientX, y: e.clientY });
-            }}
-          >
-            <span className="text-white text-xs font-medium truncate flex-1">
-              {getVideoTitle(currentVideoId)}
-            </span>
-            <button
-              onClick={() => {
-                // Don't allow closing main player - just minimize or handle differently
-                // For now, we'll keep it open
-              }}
-              className="ml-2 p-1 hover:bg-gray-600 rounded text-white transition-colors flex-shrink-0 opacity-50 cursor-not-allowed"
-              title="Main player cannot be closed"
-              disabled
-            >
-              <X size={14} />
-            </button>
-          </div>
-          {/* Player content */}
-          <div
-            ref={playerContainerRef}
-            className="relative w-full flex-1 min-h-0 bg-black"
-            style={{ overflow: 'hidden' }}
-          >
-            {/* YouTube player using react-youtube */}
-            {currentVideoId && !isLocalFile(currentVideoId) && (
-              <YouTube
-                key={currentVideoId}
-                videoId={currentVideoId}
-                opts={{
-                  height: '100%',
-                  width: '100%',
-                  playerVars: {
-                    autoplay: 1,
-                    controls: 1,
-                    disablekb: 1,
-                    fs: 0,
-                    iv_load_policy: 3,
-                    modestbranding: 1,
-                    playsinline: 1,
-                    rel: 0,
-                    showinfo: 0,
-                    origin: typeof window !== 'undefined' ? window.location.origin : ''
-                  }
-                }}
-                onReady={(event) => {
-                  playerRef.current = event.target;
-                  setIsPlayerReady(true);
-                  
-                  // Seek to resume position if available (only once per video load)
-                  if (!hasSeekedToResume.current) {
-                    const resumeTime = getVideoProgress(currentVideoId);
-                    const videoDuration = currentPlaylist.videos.find(v => v.id === currentVideoId)?.duration || 1;
-                    // Only seek if we have progress and it's not near the end (within 95%)
-                    if (resumeTime > 0 && resumeTime / videoDuration < 0.95) {
-                      try {
-                        event.target.seekTo(resumeTime, true);
-                        console.log('Seeking to resume position:', resumeTime);
-                      } catch (error) {
-                        console.error('Error seeking to resume position:', error);
-                      }
-                    }
-                    hasSeekedToResume.current = true;
-                  }
-                }}
-                onStateChange={(event) => {
-                  if (event.data === 1) { // PLAYING
-                    setIsPlaying(true);
-                  } else if (event.data === 2) { // PAUSED
-                    setIsPlaying(false);
-                    if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
-                      saveVideoProgress(currentVideoId, playerRef.current.getCurrentTime());
-                    }
-                  } else if (event.data === 0) { // ENDED
-                    goToNextVideo();
-                  }
-                }}
-                onError={(event) => {
-                  console.error("YouTube player error:", event.data);
-                  if ([100, 101, 150].includes(event.data)) {
-                    goToNextVideo();
-                  }
-                }}
-                className="absolute inset-0 w-full h-full"
-              />
-            )}
-          </div>
-          {/* Resize handle */}
-          <div
-            className="absolute bottom-0 right-0 w-4 h-4 bg-gray-600 cursor-nwse-resize"
-            onMouseDown={(e) => {
-              e.stopPropagation();
-              setIsResizingMainWindow(true);
-              setMainWindowResizeStart({
-                x: e.clientX,
-                y: e.clientY,
-                width: mainPlayerWindowSize.width,
-                height: mainPlayerWindowSize.height
-              });
-            }}
-            style={{
-              clipPath: 'polygon(100% 0, 100% 100%, 0 100%)'
-            }}
-          />
-        </div>
-      )}
-      
+    <div className="h-screen w-screen bg-black relative overflow-hidden flex font-sans">
       {/* Secondary player container - ALWAYS RENDER (NO CONDITIONS) - position and visibility with CSS only */}
       {/* This prevents React from EVER trying to unmount it - container is permanent in DOM */}
       <div 
@@ -7221,8 +7104,7 @@ export default function YouTubePlaylistPlayer() {
         </div>
       </div>
       
-      {/* Left side - now just black space since main player is windowed */}
-      <div className={`transition-all duration-500 ease-in-out h-full bg-black ${quarterSplitscreenMode ? 'w-1/2' : showSideMenu ? 'w-1/2' : 'w-full'}`}>
+      <div className={`transition-all duration-500 ease-in-out h-full ${quarterSplitscreenMode ? 'w-1/2' : showSideMenu ? 'w-1/2' : 'w-full'}`}>
         {/* Quarter splitscreen mode: two players in left quadrants */}
         {quarterSplitscreenMode ? (
           <div 
@@ -7236,12 +7118,273 @@ export default function YouTubePlaylistPlayer() {
                 playerQuadrantMode && secondaryPlayerVideoId ? 'h-1/2 flex-shrink-0' : 'h-0 hidden'
               }`}
             />
-            {/* Main player is now windowed - this area is just black space when in quarter mode */}
-            <div className="w-full h-full bg-black" />
+            {/* Primary player container - moves to bottom in quadrant mode */}
+            {/* Window-style container with border and title bar (only when secondary player exists) */}
+            {secondaryPlayerVideoId ? (
+              <div 
+                className={`relative w-full transition-all duration-500 ease-in-out flex flex-col ${
+                  playerQuadrantMode && secondaryPlayerVideoId ? 'h-1/2 flex-shrink-0' : secondaryPlayerVideoId ? 'h-1/2 flex-shrink-0' : 'h-full flex-1'
+                } bg-gray-800 border-2 border-gray-600 rounded-t-lg overflow-hidden shadow-2xl`}
+              >
+                {/* Title bar - desktop window style */}
+                <div className="relative bg-gray-700 border-b border-gray-600 px-3 py-1.5 flex items-center justify-between z-30 flex-shrink-0">
+                  <span className="text-white text-xs font-medium truncate flex-1">
+                    {getVideoTitle(currentVideoId)}
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (secondaryPlayerVideoId) {
+                        console.log('Closing Player 1, switching Player 2 to primary');
+                        const secondaryId = secondaryPlayerVideoId;
+                        setSecondaryPlayerVideoId(null);
+                        const playlistIndex = playlists.findIndex(p => 
+                          p.videos.some(v => v.id === secondaryId)
+                        );
+                        if (playlistIndex !== -1) {
+                          const videoIndex = playlists[playlistIndex].videos.findIndex(v => v.id === secondaryId);
+                          if (videoIndex !== -1) {
+                            selectVideoFromMenu(videoIndex, playlists[playlistIndex].id);
+                          }
+                        }
+                      }
+                    }}
+                    className="ml-2 p-1 hover:bg-red-600 rounded text-white transition-colors flex-shrink-0"
+                    title="Close Player 1 (Player 2 will become main)"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                {/* Player content */}
+                <div 
+                  ref={playerContainerRef} 
+                  className="relative w-full flex-1 min-h-0 bg-black" 
+                  style={{ overflow: 'hidden' }}
+                >
+                  {/* YouTube player using react-youtube - handles lifecycle better */}
+                  {currentVideoId && !isLocalFile(currentVideoId) && (
+                    <YouTube
+                      key={currentVideoId}
+                      videoId={currentVideoId}
+                      opts={{
+                        height: '100%',
+                        width: '100%',
+                        playerVars: {
+                          autoplay: 1,
+                          controls: 1,
+                          disablekb: 1,
+                          fs: 0,
+                          iv_load_policy: 3,
+                          modestbranding: 1,
+                          playsinline: 1,
+                          rel: 0,
+                          showinfo: 0,
+                          origin: typeof window !== 'undefined' ? window.location.origin : ''
+                        }
+                      }}
+                      onReady={(event) => {
+                        playerRef.current = event.target;
+                        setIsPlayerReady(true);
+                        
+                        // Seek to resume position if available (only once per video load)
+                        if (!hasSeekedToResume.current) {
+                          const resumeTime = getVideoProgress(currentVideoId);
+                          const videoDuration = currentPlaylist.videos.find(v => v.id === currentVideoId)?.duration || 1;
+                          // Only seek if we have progress and it's not near the end (within 95%)
+                          if (resumeTime > 0 && resumeTime / videoDuration < 0.95) {
+                            try {
+                              event.target.seekTo(resumeTime, true);
+                              console.log('Seeking to resume position:', resumeTime);
+                            } catch (error) {
+                              console.error('Error seeking to resume position:', error);
+                            }
+                          }
+                          hasSeekedToResume.current = true;
+                        }
+                      }}
+                      onStateChange={(event) => {
+                        if (event.data === 1) { // PLAYING
+                          setIsPlaying(true);
+                        } else if (event.data === 2) { // PAUSED
+                          setIsPlaying(false);
+                          if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
+                            saveVideoProgress(currentVideoId, playerRef.current.getCurrentTime());
+                          }
+                        } else if (event.data === 0) { // ENDED
+                          goToNextVideo();
+                        }
+                      }}
+                      onError={(event) => {
+                        console.error("YouTube player error:", event.data);
+                        if ([100, 101, 150].includes(event.data)) {
+                          goToNextVideo();
+                        }
+                      }}
+                      className="absolute inset-0 w-full h-full"
+                    />
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div 
+                className={`relative w-full transition-all duration-500 ease-in-out ${
+                  'h-full flex-1'
+                }`}
+              >
+                <div 
+                  ref={playerContainerRef} 
+                  className="relative w-full h-full min-h-0" 
+                  style={{ overflow: 'hidden' }}
+                >
+                  {/* YouTube player using react-youtube - handles lifecycle better */}
+                  {currentVideoId && !isLocalFile(currentVideoId) && (
+                    <YouTube
+                      key={currentVideoId}
+                      videoId={currentVideoId}
+                      opts={{
+                        height: '100%',
+                        width: '100%',
+                        playerVars: {
+                          autoplay: 1,
+                          controls: 1,
+                          disablekb: 1,
+                          fs: 0,
+                          iv_load_policy: 3,
+                          modestbranding: 1,
+                          playsinline: 1,
+                          rel: 0,
+                          showinfo: 0,
+                          origin: typeof window !== 'undefined' ? window.location.origin : ''
+                        }
+                      }}
+                      onReady={(event) => {
+                        playerRef.current = event.target;
+                        setIsPlayerReady(true);
+                        
+                        // Seek to resume position if available (only once per video load)
+                        if (!hasSeekedToResume.current) {
+                          const resumeTime = getVideoProgress(currentVideoId);
+                          const videoDuration = currentPlaylist.videos.find(v => v.id === currentVideoId)?.duration || 1;
+                          // Only seek if we have progress and it's not near the end (within 95%)
+                          if (resumeTime > 0 && resumeTime / videoDuration < 0.95) {
+                            try {
+                              event.target.seekTo(resumeTime, true);
+                              console.log('Seeking to resume position:', resumeTime);
+                            } catch (error) {
+                              console.error('Error seeking to resume position:', error);
+                            }
+                          }
+                          hasSeekedToResume.current = true;
+                        }
+                      }}
+                      onStateChange={(event) => {
+                        if (event.data === 1) { // PLAYING
+                          setIsPlaying(true);
+                        } else if (event.data === 2) { // PAUSED
+                          setIsPlaying(false);
+                          if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
+                            saveVideoProgress(currentVideoId, playerRef.current.getCurrentTime());
+                          }
+                        } else if (event.data === 0) { // ENDED
+                          goToNextVideo();
+                        }
+                      }}
+                      onError={(event) => {
+                        console.error("YouTube player error:", event.data);
+                        if ([100, 101, 150].includes(event.data)) {
+                          goToNextVideo();
+                        }
+                      }}
+                      className="absolute inset-0 w-full h-full"
+                    />
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
-          /* Normal mode - main player is now windowed, this is just black space */
-          <div className="w-full h-full bg-black" />
+          /* Normal single player container */
+          <div 
+            className={`relative w-full h-full transition-all duration-500 ease-in-out ${
+              playerQuadrantMode && showSideMenu && !quarterSplitscreenMode ? 'flex flex-col' : ''
+            }`}
+          >
+            {/* Black top section - only visible in quadrant mode */}
+            <div 
+              className={`w-full bg-black transition-all duration-500 ease-in-out ${
+                playerQuadrantMode && showSideMenu && !quarterSplitscreenMode ? 'h-1/2 flex-shrink-0' : 'h-0 hidden'
+              }`}
+            />
+            {/* Player container - always in same position, just changes height */}
+            <div 
+              ref={playerContainerRef} 
+              className={`relative w-full transition-all duration-500 ease-in-out ${
+                playerQuadrantMode && showSideMenu && !quarterSplitscreenMode ? 'h-1/2 flex-shrink-0' : 'h-full'
+              }`}
+            >
+              {/* YouTube player using react-youtube - handles lifecycle better */}
+              {currentVideoId && !isLocalFile(currentVideoId) && (
+                <YouTube
+                  key={currentVideoId}
+                  videoId={currentVideoId}
+                  opts={{
+                    height: '100%',
+                    width: '100%',
+                    playerVars: {
+                      autoplay: 1,
+                      controls: 1,
+                      disablekb: 1,
+                      fs: 0,
+                      iv_load_policy: 3,
+                      modestbranding: 1,
+                      playsinline: 1,
+                      rel: 0,
+                      showinfo: 0,
+                      origin: typeof window !== 'undefined' ? window.location.origin : ''
+                    }
+                  }}
+                  onReady={(event) => {
+                    playerRef.current = event.target;
+                    setIsPlayerReady(true);
+                    
+                    // Seek to resume position if available (only once per video load)
+                    if (!hasSeekedToResume.current) {
+                      const resumeTime = getVideoProgress(currentVideoId);
+                      const videoDuration = currentPlaylist.videos.find(v => v.id === currentVideoId)?.duration || 1;
+                      // Only seek if we have progress and it's not near the end (within 95%)
+                      if (resumeTime > 0 && resumeTime / videoDuration < 0.95) {
+                        try {
+                          event.target.seekTo(resumeTime, true);
+                          console.log('Seeking to resume position:', resumeTime);
+                        } catch (error) {
+                          console.error('Error seeking to resume position:', error);
+                        }
+                      }
+                      hasSeekedToResume.current = true;
+                    }
+                  }}
+                  onStateChange={(event) => {
+                    if (event.data === 1) { // PLAYING
+                      setIsPlaying(true);
+                    } else if (event.data === 2) { // PAUSED
+                      setIsPlaying(false);
+                      if (playerRef.current && typeof playerRef.current.getCurrentTime === 'function') {
+                        saveVideoProgress(currentVideoId, playerRef.current.getCurrentTime());
+                      }
+                    } else if (event.data === 0) { // ENDED
+                      goToNextVideo();
+                    }
+                  }}
+                  onError={(event) => {
+                    console.error("YouTube player error:", event.data);
+                    if ([100, 101, 150].includes(event.data)) {
+                      goToNextVideo();
+                    }
+                  }}
+                  className="absolute inset-0 w-full h-full"
+                />
+              )}
+            </div>
+          </div>
         )}
       </div>
       

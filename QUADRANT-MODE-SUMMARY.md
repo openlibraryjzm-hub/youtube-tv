@@ -13,7 +13,7 @@
 3. **Returning to Fullscreen** - ✅ Works correctly (black gap fixed)
 4. **Menu Quadrant Mode** - Hover 2 seconds on CornerDownRight button to push menu to bottom-right quadrant
 5. **Player Quadrant Mode (Single Player)** - ✅ Hover 2 seconds on MoveDown button to push player to bottom-left quadrant
-6. **Windowed Main Player** - ✅ Main player starts in resizable, draggable window mode with black space behind
+6. ~~**Windowed Main Player** - Main player starts in resizable, draggable window mode~~ ⏸️ **REVERTED** - Main player back to normal layout
 7. **Floating Window Player** - ✅ "2nd Window Player" option creates resizable, draggable floating window
 8. **2-Player Limit** - ✅ Hard rule: Only 2 players max - menu options disabled when limit reached
 
@@ -129,8 +129,9 @@
 - Condition: `playerQuadrantMode && showSideMenu && !quarterSplitscreenMode`
 - **react-youtube implementation**: Both primary and secondary players now use react-youtube component for better React lifecycle management
 - **Video playback fix**: Using `key` prop and `seekTo` in `onReady` instead of `start` parameter to prevent video resets on re-render
-- **Windowed players**: Main player and floating window player are draggable and resizable with desktop window styling
+- **Windowed players**: Floating window player is draggable and resizable with desktop window styling
 - **2-player limit**: Menu options automatically disable when 2 players are active (quarter splitscreen OR floating window)
+- **Main player**: Reverted to normal layout (not windowed by default) - can be windowed in quarter splitscreen mode when secondary player exists
 
 ## Implementation Details
 
