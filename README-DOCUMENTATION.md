@@ -49,14 +49,16 @@
    - Complete build protocol
    - **Optional deep dive for detailed explanations**
 
-### Migration & Development
+### Feature Documentation
 
-3. **[TAURI-MIGRATION-COMPLETE-CONTEXT.md](./TAURI-MIGRATION-COMPLETE-CONTEXT.md)** 🆕 **MIGRATION JOURNEY**
-   - Complete Tauri migration journey
-   - Working build protocol and core criteria
-   - Victory details and final solutions
-   - All issues encountered and resolved
-   - Production-ready status
+3. **[WINDOW-MANAGEMENT-SYSTEM.md](./WINDOW-MANAGEMENT-SYSTEM.md)** 🆕 **WINDOW SYSTEM**
+   - Complete documentation of windowed video player system
+   - Dragging, resizing, and proportional scaling
+   - Full-screen overlay approach for embed player compatibility
+   - Boundary constraints and state management
+   - **Status**: ✅ Complete, shelved for future use
+
+### Migration & Development
 
 4. **[TAURI-MIGRATION-COMPLETE-CONTEXT.md](./TAURI-MIGRATION-COMPLETE-CONTEXT.md)** 🆕 **MIGRATION JOURNEY**
    - Complete Tauri migration journey
@@ -64,7 +66,6 @@
    - Victory details and final solutions
    - All issues encountered and resolved
    - Production-ready status
-   - **Optional deep dive for migration history**
 
 ### Reference Documentation (Consolidated & Deleted)
 

@@ -650,6 +650,7 @@ export default function YouTubePlaylistPlayer() {
   const [floatingWindowSize, setFloatingWindowSize] = useState({ width: 400, height: 300 });
   const [isDraggingWindow, setIsDraggingWindow] = useState(false);
   const [isResizingWindow, setIsResizingWindow] = useState(false);
+  const [floatingWindowScaleProportionally, setFloatingWindowScaleProportionally] = useState(true); // Toggle for proportional scaling
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0, posX: 0, posY: 0 });
   // Main player window state (windowed in fullscreen mode only)
@@ -895,6 +896,9 @@ export default function YouTubePlaylistPlayer() {
   const cardStarLeaveTimer = useRef(null);
   const isInFullscreenTransition = useRef(false); // Track fullscreen transitions to prevent cleanup conflicts
   const isRestoringFromProportionalScaling = useRef(false); // Track when restoring window size from proportional scaling
+  
+  // Top menu area height - windows cannot move/resize above this line
+  const TOP_MENU_HEIGHT = 105;
 
   const currentPlaylist = playlists[currentPlaylistIndex] || { videos: [], groups: {}, starred: [] };
   const chronologicalFilter = playlistFilters[currentPlaylist.id] || 'all';
@@ -1296,21 +1300,29 @@ export default function YouTubePlaylistPlayer() {
 
   // Check if API key exists on app load (local DB doesn't need Firebase)
   useEffect(() => {
-    const stored = localStorage.getItem(CONFIG_STORAGE_KEY);
-    if (!stored) {
-      setShowConfigModal(true);
-      setIsFirebaseInitialized(false);
-    } else {
-      // Load API key from stored config
-      try {
-        const config = JSON.parse(stored);
-        setCurrentApiKey(config.apiKey || defaultApiKey);
-        setIsFirebaseInitialized(true); // Reuse this flag to indicate app is ready
-      } catch (error) {
-        console.error('Error loading config:', error);
+    try {
+      const stored = localStorage.getItem(CONFIG_STORAGE_KEY);
+      if (!stored) {
+        console.log('📝 No config found, showing config modal');
         setShowConfigModal(true);
         setIsFirebaseInitialized(false);
+      } else {
+        // Load API key from stored config
+        try {
+          const config = JSON.parse(stored);
+          setCurrentApiKey(config.apiKey || defaultApiKey);
+          console.log('✅ Config loaded successfully, initializing app');
+          setIsFirebaseInitialized(true); // Reuse this flag to indicate app is ready
+        } catch (error) {
+          console.error('❌ Error parsing config:', error);
+          setShowConfigModal(true);
+          setIsFirebaseInitialized(false);
+        }
       }
+    } catch (error) {
+      console.error('❌ Error accessing localStorage:', error);
+      setShowConfigModal(true);
+      setIsFirebaseInitialized(false);
     }
   }, []);
 
@@ -1414,6 +1426,11 @@ export default function YouTubePlaylistPlayer() {
     if (!userId || !isFirebaseInitialized) return; // Reuse isFirebaseInitialized flag to indicate app is ready
 
     console.log(`📥 Loading data from local database for user: ${userId}`);
+    
+    // Add timeout to prevent hanging
+    const timeoutId = setTimeout(() => {
+      console.warn('⚠️ Data loading is taking longer than expected, but app will continue...');
+    }, 5000);
     
     const loadData = async () => {
       try {
@@ -1648,7 +1665,13 @@ export default function YouTubePlaylistPlayer() {
       }
     };
 
-    loadData();
+    loadData().finally(() => {
+      clearTimeout(timeoutId);
+    });
+    
+    return () => {
+      clearTimeout(timeoutId);
+    };
   }, [userId, isFirebaseInitialized]);
 
 
@@ -6727,21 +6750,67 @@ export default function YouTubePlaylistPlayer() {
       const deltaY = e.clientY - dragStart.y;
       const newPosition = {
         x: floatingWindowPosition.x + deltaX,
-        y: floatingWindowPosition.y + deltaY
+        y: Math.max(TOP_MENU_HEIGHT, floatingWindowPosition.y + deltaY) // Prevent moving above top menu
       };
       setFloatingWindowPosition(newPosition);
       setDragStart({ x: e.clientX, y: e.clientY });
       
-      // Update fullscreen layout when dragging in fullscreen mode
-      if (!showSideMenu && floatingWindowVideoId) {
-        setFullscreenLayout(prev => ({
-          ...prev,
-          floatingWindow: {
-            ...prev.floatingWindow,
-            x: newPosition.x,
-            y: newPosition.y
-          }
-        }));
+      // Update fullscreen layout based on current mode (only if proportional scaling is enabled)
+      if (floatingWindowScaleProportionally) {
+        if (!showSideMenu && floatingWindowVideoId) {
+          // Fullscreen mode - update position directly
+          setFullscreenLayout(prev => ({
+            ...prev,
+            floatingWindow: {
+              ...prev.floatingWindow,
+              x: newPosition.x,
+              y: newPosition.y
+            }
+          }));
+        } else if (showSideMenu && !playerQuadrantMode && floatingWindowVideoId) {
+          // Half view mode - calculate fullscreen position from scaled position
+          const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+          const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+          const topMenuHeight = TOP_MENU_HEIGHT;
+          const availableHeight = screenHeight - topMenuHeight;
+          const scaleFactorX = 0.5;
+          const scaleFactorY = availableHeight / screenHeight;
+          
+          // Calculate fullscreen position from current scaled position
+          const fullscreenX = newPosition.x / scaleFactorX;
+          const fullscreenY = (newPosition.y - topMenuHeight) / scaleFactorY;
+          
+          setFullscreenLayout(prev => ({
+            ...prev,
+            floatingWindow: {
+              ...prev.floatingWindow,
+              x: fullscreenX,
+              y: fullscreenY
+            }
+          }));
+        } else if (playerQuadrantMode && showSideMenu && !quarterSplitscreenMode && floatingWindowVideoId) {
+          // Quarter view mode - calculate fullscreen position from scaled position
+          const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+          const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+          const topMenuHeight = TOP_MENU_HEIGHT;
+          const availableHeight = screenHeight - topMenuHeight;
+          const bottomHalfHeight = availableHeight / 2;
+          const scaleFactorX = 0.5;
+          const scaleFactorY = bottomHalfHeight / screenHeight;
+          
+          // Calculate fullscreen position from current scaled position
+          const fullscreenX = newPosition.x / scaleFactorX;
+          const fullscreenY = (newPosition.y - topMenuHeight - bottomHalfHeight) / scaleFactorY;
+          
+          setFullscreenLayout(prev => ({
+            ...prev,
+            floatingWindow: {
+              ...prev.floatingWindow,
+              x: fullscreenX,
+              y: fullscreenY
+            }
+          }));
+        }
       }
     };
 
@@ -6827,25 +6896,90 @@ export default function YouTubePlaylistPlayer() {
       } else if (dir.includes('n')) {
         // Resizing from top edge
         const newHeight = Math.max(200, resizeStart.height - deltaY);
-        newPosition.y = resizeStart.posY + (resizeStart.height - newHeight);
-        newSize.height = newHeight;
+        const calculatedY = resizeStart.posY + (resizeStart.height - newHeight);
+        // Prevent window top edge from going above top menu
+        newPosition.y = Math.max(TOP_MENU_HEIGHT, calculatedY);
+        // Adjust height if we hit the boundary
+        if (calculatedY < TOP_MENU_HEIGHT) {
+          newSize.height = resizeStart.height - (TOP_MENU_HEIGHT - resizeStart.posY);
+        } else {
+          newSize.height = newHeight;
+        }
+      }
+      
+      // Ensure window top edge never goes above top menu (for corner resizing)
+      if (newPosition.y < TOP_MENU_HEIGHT) {
+        const heightAdjustment = TOP_MENU_HEIGHT - newPosition.y;
+        newPosition.y = TOP_MENU_HEIGHT;
+        newSize.height = Math.max(200, newSize.height - heightAdjustment);
       }
       
       setFloatingWindowSize(newSize);
       setFloatingWindowPosition(newPosition);
       
-      // Update fullscreen layout when resizing in fullscreen mode
-      if (!showSideMenu && floatingWindowVideoId) {
-        setFullscreenLayout(prev => ({
-          ...prev,
-          floatingWindow: {
-            ...prev.floatingWindow,
-            x: newPosition.x,
-            y: newPosition.y,
-            width: newSize.width,
-            height: newSize.height
-          }
-        }));
+      // Update fullscreen layout based on current mode (only if proportional scaling is enabled)
+      if (floatingWindowScaleProportionally) {
+        if (!showSideMenu && floatingWindowVideoId) {
+          // Fullscreen mode - update directly
+          setFullscreenLayout(prev => ({
+            ...prev,
+            floatingWindow: {
+              x: newPosition.x,
+              y: newPosition.y,
+              width: newSize.width,
+              height: newSize.height
+            }
+          }));
+        } else if (showSideMenu && !playerQuadrantMode && floatingWindowVideoId) {
+          // Half view mode - calculate fullscreen size from scaled size
+          const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+          const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+          const topMenuHeight = TOP_MENU_HEIGHT;
+          const availableHeight = screenHeight - topMenuHeight;
+          const scaleFactorX = 0.5;
+          const scaleFactorY = availableHeight / screenHeight;
+          
+          // Calculate fullscreen size from current scaled size
+          const fullscreenWidth = newSize.width / scaleFactorX;
+          const fullscreenHeight = newSize.height / scaleFactorY;
+          const fullscreenX = newPosition.x / scaleFactorX;
+          const fullscreenY = (newPosition.y - topMenuHeight) / scaleFactorY;
+          
+          setFullscreenLayout(prev => ({
+            ...prev,
+            floatingWindow: {
+              x: fullscreenX,
+              y: fullscreenY,
+              width: fullscreenWidth,
+              height: fullscreenHeight
+            }
+          }));
+        } else if (playerQuadrantMode && showSideMenu && !quarterSplitscreenMode && floatingWindowVideoId) {
+          // Quarter view mode - calculate fullscreen size from scaled size
+          const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+          const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+          const topMenuHeight = TOP_MENU_HEIGHT;
+          const availableHeight = screenHeight - topMenuHeight;
+          const bottomHalfHeight = availableHeight / 2;
+          const scaleFactorX = 0.5;
+          const scaleFactorY = bottomHalfHeight / screenHeight;
+          
+          // Calculate fullscreen size from current scaled size
+          const fullscreenWidth = newSize.width / scaleFactorX;
+          const fullscreenHeight = newSize.height / scaleFactorY;
+          const fullscreenX = newPosition.x / scaleFactorX;
+          const fullscreenY = (newPosition.y - topMenuHeight - bottomHalfHeight) / scaleFactorY;
+          
+          setFullscreenLayout(prev => ({
+            ...prev,
+            floatingWindow: {
+              x: fullscreenX,
+              y: fullscreenY,
+              width: fullscreenWidth,
+              height: fullscreenHeight
+            }
+          }));
+        }
       }
     };
 
@@ -6932,15 +7066,30 @@ export default function YouTubePlaylistPlayer() {
       } else if (dir.includes('n')) {
         // Resizing from top edge
         const newHeight = Math.max(300, mainWindowResizeStart.height - deltaY);
-        newPosition.y = mainWindowResizeStart.posY + (mainWindowResizeStart.height - newHeight);
-        newSize.height = newHeight;
+        const calculatedY = mainWindowResizeStart.posY + (mainWindowResizeStart.height - newHeight);
+        // Prevent window top edge from going above top menu
+        newPosition.y = Math.max(TOP_MENU_HEIGHT, calculatedY);
+        // Adjust height if we hit the boundary
+        if (calculatedY < TOP_MENU_HEIGHT) {
+          newSize.height = mainWindowResizeStart.height - (TOP_MENU_HEIGHT - mainWindowResizeStart.posY);
+        } else {
+          newSize.height = newHeight;
+        }
+      }
+      
+      // Ensure window top edge never goes above top menu (for corner resizing)
+      if (newPosition.y < TOP_MENU_HEIGHT) {
+        const heightAdjustment = TOP_MENU_HEIGHT - newPosition.y;
+        newPosition.y = TOP_MENU_HEIGHT;
+        newSize.height = Math.max(300, newSize.height - heightAdjustment);
       }
       
       setMainPlayerWindowSize(newSize);
       setMainPlayerWindowPosition(newPosition);
       
-      // Update fullscreen layout when resizing in fullscreen mode
+      // Update fullscreen layout based on current mode
       if (!showSideMenu) {
+        // Fullscreen mode - update directly
         setFullscreenLayout(prev => ({
           ...prev,
           mainPlayer: {
@@ -6948,6 +7097,55 @@ export default function YouTubePlaylistPlayer() {
             y: newPosition.y,
             width: newSize.width,
             height: newSize.height
+          }
+        }));
+      } else if (showSideMenu && !playerQuadrantMode) {
+        // Half view mode - calculate fullscreen size from scaled size
+        const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+        const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+        const topMenuHeight = TOP_MENU_HEIGHT;
+        const availableHeight = screenHeight - topMenuHeight;
+        const scaleFactorX = 0.5; // leftHalfWidth / screenWidth
+        const scaleFactorY = availableHeight / screenHeight;
+        
+        // Calculate fullscreen size from current scaled size
+        const fullscreenWidth = newSize.width / scaleFactorX;
+        const fullscreenHeight = newSize.height / scaleFactorY;
+        const fullscreenX = newPosition.x / scaleFactorX;
+        const fullscreenY = (newPosition.y - topMenuHeight) / scaleFactorY;
+        
+        setFullscreenLayout(prev => ({
+          ...prev,
+          mainPlayer: {
+            x: fullscreenX,
+            y: fullscreenY,
+            width: fullscreenWidth,
+            height: fullscreenHeight
+          }
+        }));
+      } else if (playerQuadrantMode && showSideMenu && !quarterSplitscreenMode) {
+        // Quarter view mode - calculate fullscreen size from scaled size
+        const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+        const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+        const topMenuHeight = TOP_MENU_HEIGHT;
+        const availableHeight = screenHeight - topMenuHeight;
+        const bottomHalfHeight = availableHeight / 2;
+        const scaleFactorX = 0.5; // leftHalfWidth / screenWidth
+        const scaleFactorY = bottomHalfHeight / screenHeight;
+        
+        // Calculate fullscreen size from current scaled size
+        const fullscreenWidth = newSize.width / scaleFactorX;
+        const fullscreenHeight = newSize.height / scaleFactorY;
+        const fullscreenX = newPosition.x / scaleFactorX;
+        const fullscreenY = (newPosition.y - topMenuHeight - bottomHalfHeight) / scaleFactorY;
+        
+        setFullscreenLayout(prev => ({
+          ...prev,
+          mainPlayer: {
+            x: fullscreenX,
+            y: fullscreenY,
+            width: fullscreenWidth,
+            height: fullscreenHeight
           }
         }));
       }
@@ -7005,19 +7203,63 @@ export default function YouTubePlaylistPlayer() {
       const deltaY = e.clientY - mainWindowDragStart.y;
       const newPosition = {
         x: mainPlayerWindowPosition.x + deltaX,
-        y: mainPlayerWindowPosition.y + deltaY
+        y: Math.max(TOP_MENU_HEIGHT, mainPlayerWindowPosition.y + deltaY) // Prevent moving above top menu
       };
       setMainPlayerWindowPosition(newPosition);
       setMainWindowDragStart({ x: e.clientX, y: e.clientY });
       
-      // Update fullscreen layout when dragging in fullscreen mode
+      // Update fullscreen layout based on current mode
       if (!showSideMenu) {
+        // Fullscreen mode - update position directly
         setFullscreenLayout(prev => ({
           ...prev,
           mainPlayer: {
             ...prev.mainPlayer,
             x: newPosition.x,
             y: newPosition.y
+          }
+        }));
+      } else if (showSideMenu && !playerQuadrantMode) {
+        // Half view mode - calculate fullscreen position from scaled position
+        const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+        const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+        const topMenuHeight = TOP_MENU_HEIGHT;
+        const availableHeight = screenHeight - topMenuHeight;
+        const scaleFactorX = 0.5;
+        const scaleFactorY = availableHeight / screenHeight;
+        
+        // Calculate fullscreen position from current scaled position
+        const fullscreenX = newPosition.x / scaleFactorX;
+        const fullscreenY = (newPosition.y - topMenuHeight) / scaleFactorY;
+        
+        setFullscreenLayout(prev => ({
+          ...prev,
+          mainPlayer: {
+            ...prev.mainPlayer,
+            x: fullscreenX,
+            y: fullscreenY
+          }
+        }));
+      } else if (playerQuadrantMode && showSideMenu && !quarterSplitscreenMode) {
+        // Quarter view mode - calculate fullscreen position from scaled position
+        const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+        const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+        const topMenuHeight = TOP_MENU_HEIGHT;
+        const availableHeight = screenHeight - topMenuHeight;
+        const bottomHalfHeight = availableHeight / 2;
+        const scaleFactorX = 0.5;
+        const scaleFactorY = bottomHalfHeight / screenHeight;
+        
+        // Calculate fullscreen position from current scaled position
+        const fullscreenX = newPosition.x / scaleFactorX;
+        const fullscreenY = (newPosition.y - topMenuHeight - bottomHalfHeight) / scaleFactorY;
+        
+        setFullscreenLayout(prev => ({
+          ...prev,
+          mainPlayer: {
+            ...prev.mainPlayer,
+            x: fullscreenX,
+            y: fullscreenY
           }
         }));
       }
@@ -7057,10 +7299,12 @@ export default function YouTubePlaylistPlayer() {
       
       if (mainPlayerWindowSize.width === 0 || mainPlayerWindowSize.height === 0) {
         // First time in fullscreen - set to 81% width (10% narrower), 64% height (20% shorter) (centered)
+        // Position below top menu area
         const initialWidth = screenWidth * 0.81;
-        const initialHeight = screenHeight * 0.64;
+        const availableHeight = screenHeight - TOP_MENU_HEIGHT;
+        const initialHeight = availableHeight * 0.64; // 64% of available height (below menu)
         const initialX = (screenWidth - initialWidth) / 2;
-        const initialY = (screenHeight - initialHeight) / 2;
+        const initialY = TOP_MENU_HEIGHT + (availableHeight - initialHeight) / 2; // Center in available area
         setMainPlayerWindowSize({ width: initialWidth, height: initialHeight });
         setMainPlayerWindowPosition({ x: initialX, y: initialY });
         setFullscreenLayout({
@@ -7165,11 +7409,14 @@ export default function YouTubePlaylistPlayer() {
       }
     } else if (!playerQuadrantMode) {
       // Menu open (but not quadrant mode) - scale to left half proportionally
+      // Account for top playlist menu height (top-4 = 16px + menu content ~80px = ~96px total)
       const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
       const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+      const topMenuHeight = TOP_MENU_HEIGHT; // Top playlist menu area - windows cannot move/resize above this line
+      const availableHeight = screenHeight - topMenuHeight;
       const leftHalfWidth = screenWidth / 2;
       const scaleFactorX = leftHalfWidth / screenWidth; // 0.5
-      const scaleFactorY = 1; // Keep full height
+      const scaleFactorY = availableHeight / screenHeight; // Scale based on available height below menu
       
       // Scale main player proportionally to left half
       if (fullscreenLayout.mainPlayer.width > 0 && fullscreenLayout.mainPlayer.height > 0) {
@@ -7179,7 +7426,8 @@ export default function YouTubePlaylistPlayer() {
         const scaledWidth = fullscreenLayout.mainPlayer.width * scaleFactorX;
         const scaledHeight = fullscreenLayout.mainPlayer.height * scaleFactorY;
         const scaledX = fullscreenLayout.mainPlayer.x * scaleFactorX;
-        const scaledY = fullscreenLayout.mainPlayer.y * scaleFactorY;
+        // Adjust Y position to account for top menu offset
+        const scaledY = (fullscreenLayout.mainPlayer.y * scaleFactorY) + topMenuHeight;
         
         setMainPlayerWindowSize({ width: scaledWidth, height: scaledHeight });
         setMainPlayerWindowPosition({ x: scaledX, y: scaledY });
@@ -7190,56 +7438,61 @@ export default function YouTubePlaylistPlayer() {
         }, 100);
       }
       
-      // Scale floating window proportionally to left half
-      if (floatingWindowVideoId && fullscreenLayout.floatingWindow.width > 0 && fullscreenLayout.floatingWindow.height > 0) {
+      // Scale floating window proportionally to left half (only if proportional scaling is enabled)
+      if (floatingWindowVideoId && floatingWindowScaleProportionally && fullscreenLayout.floatingWindow.width > 0 && fullscreenLayout.floatingWindow.height > 0) {
         const scaledWidth = fullscreenLayout.floatingWindow.width * scaleFactorX;
         const scaledHeight = fullscreenLayout.floatingWindow.height * scaleFactorY;
         const scaledX = fullscreenLayout.floatingWindow.x * scaleFactorX;
-        const scaledY = fullscreenLayout.floatingWindow.y * scaleFactorY;
+        // Adjust Y position to account for top menu offset
+        const scaledY = (fullscreenLayout.floatingWindow.y * scaleFactorY) + topMenuHeight;
         
         setFloatingWindowSize({ width: scaledWidth, height: scaledHeight });
         setFloatingWindowPosition({ x: scaledX, y: scaledY });
       }
     }
-  }, [showSideMenu, fullscreenLayout, floatingWindowVideoId, playerQuadrantMode]);
+  }, [showSideMenu, fullscreenLayout, floatingWindowVideoId, playerQuadrantMode, floatingWindowScaleProportionally]);
 
   // Proportional scaling when quadrant mode activates
   useEffect(() => {
     if (playerQuadrantMode && showSideMenu && !quarterSplitscreenMode) {
       // Quadrant mode - scale to bottom-left quadrant proportionally
+      // Account for top playlist menu height
       const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
       const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+      const topMenuHeight = TOP_MENU_HEIGHT; // Top playlist menu area - windows cannot move/resize above this line
+      const availableHeight = screenHeight - topMenuHeight;
       const leftHalfWidth = screenWidth / 2;
-      const bottomHalfHeight = screenHeight / 2;
+      const bottomHalfHeight = availableHeight / 2; // Half of available height (below menu)
       
-      // Scale factors: width scales to left half (0.5), height scales to bottom half (0.5)
+      // Scale factors: width scales to left half (0.5), height scales to bottom half of available area
       const scaleFactorX = leftHalfWidth / screenWidth; // 0.5
-      const scaleFactorY = bottomHalfHeight / screenHeight; // 0.5
+      const scaleFactorY = bottomHalfHeight / screenHeight; // Scale based on available height
       
       // Scale main player proportionally to bottom-left quadrant
       if (fullscreenLayout.mainPlayer.width > 0 && fullscreenLayout.mainPlayer.height > 0) {
         const scaledWidth = fullscreenLayout.mainPlayer.width * scaleFactorX;
         const scaledHeight = fullscreenLayout.mainPlayer.height * scaleFactorY;
-        // Position in bottom-left quadrant (X scales, Y scales and offsets to bottom half)
+        // Position in bottom-left quadrant (X scales, Y scales and offsets to bottom half of available area)
         const scaledX = fullscreenLayout.mainPlayer.x * scaleFactorX;
-        const scaledY = (fullscreenLayout.mainPlayer.y * scaleFactorY) + bottomHalfHeight;
+        const scaledY = (fullscreenLayout.mainPlayer.y * scaleFactorY) + topMenuHeight + bottomHalfHeight;
         
         setMainPlayerWindowSize({ width: scaledWidth, height: scaledHeight });
         setMainPlayerWindowPosition({ x: scaledX, y: scaledY });
       }
       
-      // Scale floating window proportionally to bottom-left quadrant
-      if (floatingWindowVideoId && fullscreenLayout.floatingWindow.width > 0 && fullscreenLayout.floatingWindow.height > 0) {
+      // Scale floating window proportionally to bottom-left quadrant (only if proportional scaling is enabled)
+      if (floatingWindowVideoId && floatingWindowScaleProportionally && fullscreenLayout.floatingWindow.width > 0 && fullscreenLayout.floatingWindow.height > 0) {
         const scaledWidth = fullscreenLayout.floatingWindow.width * scaleFactorX;
         const scaledHeight = fullscreenLayout.floatingWindow.height * scaleFactorY;
         const scaledX = fullscreenLayout.floatingWindow.x * scaleFactorX;
-        const scaledY = (fullscreenLayout.floatingWindow.y * scaleFactorY) + bottomHalfHeight;
+        // Adjust Y position to account for top menu and bottom half offset
+        const scaledY = (fullscreenLayout.floatingWindow.y * scaleFactorY) + topMenuHeight + bottomHalfHeight;
         
         setFloatingWindowSize({ width: scaledWidth, height: scaledHeight });
         setFloatingWindowPosition({ x: scaledX, y: scaledY });
       }
     }
-  }, [playerQuadrantMode, showSideMenu, quarterSplitscreenMode, fullscreenLayout, floatingWindowVideoId]);
+  }, [playerQuadrantMode, showSideMenu, quarterSplitscreenMode, fullscreenLayout, floatingWindowVideoId, floatingWindowScaleProportionally]);
 
   // Initialize floating window player
   useEffect(() => {
@@ -7467,8 +7720,8 @@ export default function YouTubePlaylistPlayer() {
 
   return (
     <div className="h-screen w-screen bg-black relative overflow-hidden font-sans">
-      {/* Main Player Window - windowed in fullscreen and menu modes (proportional scaling) */}
-      {currentVideoId && !quarterSplitscreenMode && (
+      {/* Main Player Window - DISABLED: Using standard non-windowed player in all modes */}
+      {false && currentVideoId && !quarterSplitscreenMode && showSideMenu && (
         <div
           ref={mainPlayerWindowRef}
           className="fixed bg-gray-800 border-2 border-gray-600 rounded-t-lg overflow-hidden shadow-2xl flex flex-col z-40"
@@ -7522,6 +7775,13 @@ export default function YouTubePlaylistPlayer() {
                 onReady={(event) => {
                   playerRef.current = event.target;
                   setIsPlayerReady(true);
+                  
+                  // Autoplay video
+                  try {
+                    event.target.playVideo();
+                  } catch (error) {
+                    console.error('Error autoplaying video:', error);
+                  }
                   
                   // Seek to resume position if available (only once per video load)
                   if (!hasSeekedToResume.current) {
@@ -7988,12 +8248,9 @@ export default function YouTubePlaylistPlayer() {
             )}
           </div>
         ) : (
-          /* Normal single player container - HIDDEN when windowed version is shown (fullscreen mode OR menu mode with windowed player) */
-          (!showSideMenu || (currentVideoId && !quarterSplitscreenMode)) ? (
-            /* Fullscreen mode OR menu mode with windowed player - show black space, windowed player is rendered separately */
-            <div className="w-full h-full bg-black" />
-          ) : (
-            /* Menu open without windowed player - show normal player layout (for non-windowed mode compatibility) */
+          /* Normal single player container - shown in all modes (fullscreen, half, quarter) */
+          (
+            /* Show standard player layout in all modes */
             <div 
               className={`relative w-full h-full transition-all duration-500 ease-in-out ${
                 playerQuadrantMode && showSideMenu && !quarterSplitscreenMode ? 'flex flex-col' : ''
@@ -8036,6 +8293,13 @@ export default function YouTubePlaylistPlayer() {
                     onReady={(event) => {
                       playerRef.current = event.target;
                       setIsPlayerReady(true);
+                      
+                      // Autoplay video
+                      try {
+                        event.target.playVideo();
+                      } catch (error) {
+                        console.error('Error autoplaying video:', error);
+                      }
                       
                       // Seek to resume position if available (only once per video load)
                       if (!hasSeekedToResume.current) {
@@ -8087,7 +8351,7 @@ export default function YouTubePlaylistPlayer() {
         <div 
           className={`transition-all duration-500 ease-in-out backdrop-blur-sm overflow-y-auto ${showSideMenu ? (
             playerQuadrantMode && secondaryPlayerVideoId && quarterSplitscreenMode ? 'w-full absolute top-0 right-0 h-1/2' : 
-            menuQuadrantMode ? 'w-full absolute bottom-0 right-0 h-1/2' : 'w-full'
+            menuQuadrantMode ? 'w-full absolute bottom-0 right-0 h-1/2' : 'w-full h-screen'
           ) : 'w-0'}`}
           style={{ 
             backgroundColor: showSideMenu ? averageColor : 'transparent'
@@ -9329,23 +9593,41 @@ export default function YouTubePlaylistPlayer() {
             <span className="text-white text-xs font-medium truncate flex-1">
               {getVideoTitle(floatingWindowVideoId)}
             </span>
-            <button
-              onClick={() => {
-                setFloatingWindowVideoId(null);
-                if (floatingPlayerRef.current && typeof floatingPlayerRef.current.destroy === 'function') {
-                  try {
-                    floatingPlayerRef.current.destroy();
-                  } catch (error) {
-                    console.error('Error destroying floating player:', error);
+            <div className="flex items-center gap-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setFloatingWindowScaleProportionally(!floatingWindowScaleProportionally);
+                }}
+                className={`p-1 rounded text-white transition-colors flex-shrink-0 ${
+                  floatingWindowScaleProportionally 
+                    ? 'bg-blue-600 hover:bg-blue-700' 
+                    : 'bg-gray-600 hover:bg-gray-700'
+                }`}
+                title={floatingWindowScaleProportionally ? "Disable proportional scaling (window will stay same size)" : "Enable proportional scaling (window will scale with menu/quadrant modes)"}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                </svg>
+              </button>
+              <button
+                onClick={() => {
+                  setFloatingWindowVideoId(null);
+                  if (floatingPlayerRef.current && typeof floatingPlayerRef.current.destroy === 'function') {
+                    try {
+                      floatingPlayerRef.current.destroy();
+                    } catch (error) {
+                      console.error('Error destroying floating player:', error);
+                    }
                   }
-                }
-                floatingPlayerRef.current = null;
-              }}
-              className="ml-2 p-1 hover:bg-red-600 rounded text-white transition-colors flex-shrink-0"
-              title="Close Window"
-            >
-              <X size={14} />
-            </button>
+                  floatingPlayerRef.current = null;
+                }}
+                className="ml-1 p-1 hover:bg-red-600 rounded text-white transition-colors flex-shrink-0"
+                title="Close Window"
+              >
+                <X size={14} />
+              </button>
+            </div>
           </div>
           {/* Player content */}
           <div
@@ -9377,6 +9659,12 @@ export default function YouTubePlaylistPlayer() {
                 onReady={(event) => {
                   floatingPlayerRef.current = event.target;
                   console.log('Floating window player ready');
+                  // Autoplay video
+                  try {
+                    event.target.playVideo();
+                  } catch (error) {
+                    console.error('Error autoplaying floating video:', error);
+                  }
                 }}
                 onStateChange={(event) => {
                   console.log('Floating player state changed:', event.data);

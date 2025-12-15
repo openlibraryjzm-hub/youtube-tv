@@ -134,6 +134,7 @@
 - **2-player limit**: Menu options automatically disable when 2 players are active (quarter splitscreen OR floating window)
 - **Proportional scaling**: When menu opens, both players scale to left half maintaining relative proportions. When quadrant mode activates, both scale to bottom-left quadrant maintaining relative proportions
 - **Fullscreen layout tracking**: System tracks fullscreen layout state and applies proportional scaling based on menu/quadrant mode
+- **Window Management System**: Complete window dragging, resizing, and proportional scaling system implemented. See [WINDOW-MANAGEMENT-SYSTEM.md](./WINDOW-MANAGEMENT-SYSTEM.md) for comprehensive documentation
 
 ## Implementation Details
 
