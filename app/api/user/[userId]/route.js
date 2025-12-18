@@ -1,7 +1,8 @@
 import { getDatabase } from '../../../../lib/db';
 
-// Allow dynamic rendering in dev mode, static in production
-export const dynamic = 'force-dynamic';
+// Force static export for this route (required for output: 'export')
+export const dynamic = 'force-static';
+export const generateStaticParams = () => [{ userId: 'dummy' }];
 
 // GET /api/user/[userId] - Get user data
 export async function GET(request, { params }) {

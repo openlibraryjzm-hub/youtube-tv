@@ -75,6 +75,8 @@ import {
   MoveDown,
 } from "lucide-react"
 import YouTube from "react-youtube"
+import RadialMenu from "./components/RadialMenu"
+import PlayerAreaMapper from "./components/PlayerAreaMapper"
 // Firebase imports removed - using local database via API routes instead
 // import { collection, query, orderBy, limit, deleteDoc, setDoc, doc, onSnapshot, updateDoc, getDocs, writeBatch, where, deleteField } from "firebase/firestore";
 
@@ -892,6 +894,7 @@ export default function YouTubePlaylistPlayer() {
   const starLeaveTimer = useRef(null);
   const menuQuadrantHoverTimer = useRef(null);
   const playerQuadrantHoverTimer = useRef(null);
+  const radialMenuScrollRef = useRef(null);
   const cardStarHoverTimer = useRef(null);
   const cardStarLeaveTimer = useRef(null);
   const isInFullscreenTransition = useRef(false); // Track fullscreen transitions to prevent cleanup conflicts
@@ -8050,7 +8053,20 @@ export default function YouTubePlaylistPlayer() {
         </div>
       </div>
       
-      <div className={`transition-all duration-500 ease-in-out h-full ${quarterSplitscreenMode ? 'w-1/2' : showSideMenu ? 'w-1/2' : 'w-full'}`}>
+      {/* Player area with preferred sizes from JSON files */}
+      {/* Half player: x:0, y:10.1189%, width:50%, height:89.8595% */}
+      {/* Full player: x:0, y:10.1189%, width:100.25%, height:89.773% */}
+      <div 
+        className="transition-all duration-500 ease-in-out"
+        style={{
+          position: 'absolute',
+          left: '0%',
+          top: quarterSplitscreenMode ? '0%' : '10.118918918918919%',
+          width: quarterSplitscreenMode ? '50%' : showSideMenu ? '50%' : '100.25%',
+          height: quarterSplitscreenMode ? '100%' : showSideMenu ? '89.85945945945946%' : '89.77297297297298%',
+          zIndex: 1
+        }}
+      >
         {/* Quarter splitscreen mode: two players in left quadrants */}
         {quarterSplitscreenMode ? (
           <div 
@@ -8256,18 +8272,26 @@ export default function YouTubePlaylistPlayer() {
                 playerQuadrantMode && showSideMenu && !quarterSplitscreenMode ? 'flex flex-col' : ''
               }`}
             >
-              {/* Black top section - only visible in quadrant mode */}
+              {/* Radial Menu - only visible in quadrant mode */}
               <div 
-                className={`w-full bg-black transition-all duration-500 ease-in-out ${
+                className={`relative transition-all duration-500 ease-in-out ${
                   playerQuadrantMode && showSideMenu && !quarterSplitscreenMode ? 'h-1/2 flex-shrink-0' : 'h-0 hidden'
                 }`}
-              />
+                style={{
+                  overflow: 'visible' // Allow menu to be positioned outside container
+                }}
+              >
+                {playerQuadrantMode && showSideMenu && !quarterSplitscreenMode && (
+                  <RadialMenu onScrollRef={radialMenuScrollRef} playlists={playlists} />
+                )}
+              </div>
               {/* Player container - always in same position, just changes height */}
               <div 
                 ref={playerContainerRef} 
-                className={`relative w-full transition-all duration-500 ease-in-out ${
-                  playerQuadrantMode && showSideMenu && !quarterSplitscreenMode ? 'h-1/2 flex-shrink-0' : 'h-full'
-                }`}
+                className="relative w-full transition-all duration-500 ease-in-out"
+                style={{
+                  height: playerQuadrantMode && showSideMenu && !quarterSplitscreenMode ? '50%' : '100%'
+                }}
               >
                 {/* YouTube player using react-youtube - handles lifecycle better */}
                 {currentVideoId && !isLocalFile(currentVideoId) && (
@@ -8346,7 +8370,17 @@ export default function YouTubePlaylistPlayer() {
       
       {/* Right side container - menu and secondary player (when in playerQuadrantMode with 2 players) */}
       {/* ALWAYS render to prevent React unmount conflicts - control visibility with CSS */}
-      <div className={`relative transition-all duration-500 ease-in-out ${showSideMenu ? 'w-1/2' : 'w-0 overflow-hidden'}`}>
+      <div 
+        className="transition-all duration-500 ease-in-out"
+        style={{
+          position: 'absolute',
+          right: showSideMenu ? '0%' : '-50%',
+          top: '0%',
+          width: showSideMenu ? '50%' : '0%',
+          height: '100%',
+          zIndex: 5
+        }}
+      >
         {/* Menu container */}
         <div 
           className={`transition-all duration-500 ease-in-out backdrop-blur-sm overflow-y-auto ${showSideMenu ? (
@@ -9883,8 +9917,12 @@ export default function YouTubePlaylistPlayer() {
         </div>
       )}
       
+      
       <div className="fixed top-4 left-0 right-0 z-20 flex justify-center items-start gap-4 pointer-events-none">
-        <div className="relative rounded-lg p-2 text-white pointer-events-auto overflow-hidden w-[300px] order-1">
+        {/* Top Playlist Menu - Part of expanded hitbox */}
+        <div 
+          className="relative rounded-lg p-2 text-white pointer-events-auto overflow-hidden w-[300px] order-1"
+        >
           <div className="absolute inset-0 -z-10">
             <div className="absolute inset-0 transition-all duration-1000" style={{
               backgroundImage: currentVideoId ? `url(https://img.youtube.com/vi/${currentVideoId}/hqdefault.jpg)` : 'none',
@@ -9927,18 +9965,19 @@ export default function YouTubePlaylistPlayer() {
                   }, 2000);
                 }}
                 onMouseLeave={() => {
-                  if (playerQuadrantHoverTimer.current) {
-                    clearTimeout(playerQuadrantHoverTimer.current);
-                    playerQuadrantHoverTimer.current = null;
+                  // Don't deactivate if mouse is still in the expanded hitbox area
+                  // The hitbox wrapper will handle deactivation
+                }}
+                onWheel={(e) => {
+                  // Forward scroll events to radial menu when in quadrant mode
+                  if (playerQuadrantMode && radialMenuScrollRef.current) {
+                    radialMenuScrollRef.current(e.nativeEvent);
                   }
-                  // Return players to normal position when hovering stops
-                  console.log('Player quadrant mode deactivated');
-                  setPlayerQuadrantMode(false);
                 }}
               >
                 <button
                   className={`p-2 rounded-full transition-colors ${playerQuadrantMode ? 'bg-blue-500' : 'bg-white/10 hover:bg-white/20'}`}
-                  title="Hover 2 seconds to push players to bottom quadrants"
+                  title="Hover 2 seconds to push players to bottom quadrants. Scroll while hovering to navigate menu."
                 >
                   <MoveDown size={16} />
                 </button>
@@ -10913,6 +10952,9 @@ export default function YouTubePlaylistPlayer() {
       )}
 
       </div>
+      
+      {/* Player Area Mapper Tool */}
+      <PlayerAreaMapper />
     </div>
   )
 }

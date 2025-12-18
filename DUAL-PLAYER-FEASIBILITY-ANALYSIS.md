@@ -327,3 +327,5 @@ const [viewScale, setViewScale] = useState(1); // 1.0 = fullscreen, 0.5 = half, 
 **Next Steps:** If proceeding, start with Split View implementation to validate the dual player concept before attempting the more complex overlay window system.
 
 
+
+
