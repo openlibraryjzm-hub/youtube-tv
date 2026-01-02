@@ -329,3 +329,12 @@ const [viewScale, setViewScale] = useState(1); // 1.0 = fullscreen, 0.5 = half, 
 
 
 
+
+
+
+
+
+
+
+
+

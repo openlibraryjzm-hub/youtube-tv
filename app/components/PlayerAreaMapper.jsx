@@ -272,3 +272,12 @@ export default function PlayerAreaMapper({ onAreaSet }) {
     </div>
   )
 }
+
+
+
+
+
+
+
+
+

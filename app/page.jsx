@@ -77,6 +77,8 @@ import {
 import YouTube from "react-youtube"
 import RadialMenu from "./components/RadialMenu"
 import PlayerAreaMapper from "./components/PlayerAreaMapper"
+import PlayerController from "./components/unified/PlayerController"
+import UnifiedPanel from "./components/unified/UnifiedPanel"
 // Firebase imports removed - using local database via API routes instead
 // import { collection, query, orderBy, limit, deleteDoc, setDoc, doc, onSnapshot, updateDoc, getDocs, writeBatch, where, deleteField } from "firebase/firestore";
 
@@ -640,6 +642,8 @@ export default function YouTubePlaylistPlayer() {
   const [currentShufflePosition, setCurrentShufflePosition] = useState(0);
   const [shuffleSessionLog, setShuffleSessionLog] = useState([]);
   const [showSideMenu, setShowSideMenu] = useState(null);
+  const [showUnifiedPanel, setShowUnifiedPanel] = useState(false); // Start with full screen player, no menu
+  const [debugClickMode, setDebugClickMode] = useState(false); // Debug mode to track clicks
   const [videoFilter, setVideoFilter] = useState('all'); // Filter for the side menu display
   const [quarterSplitscreenMode, setQuarterSplitscreenMode] = useState(false); // Quarter splitscreen: two players in left quadrants
   const [secondaryPlayerVideoId, setSecondaryPlayerVideoId] = useState(null); // Video ID for second player in quarter splitscreen
@@ -702,6 +706,7 @@ export default function YouTubePlaylistPlayer() {
   const [tabLastPlaylists, setTabLastPlaylists] = useState({}); // { [tabIndex]: playlistIndex }
   const [viewingPlaylistTab, setViewingPlaylistTab] = useState(0); // Which tab's contents to show in playlist grid menu
   const [activeTopMenuTab, setActiveTopMenuTab] = useState(0);
+  const [unifiedPanelActiveTab, setUnifiedPanelActiveTab] = useState('content'); // For UnifiedPanel tab switching
   const [showAddPlaylistModal, setShowAddPlaylistModal] = useState(false);
   const [renamingPlaylist, setRenamingPlaylist] = useState(null);
   const [playlistRenameInput, setPlaylistRenameInput] = useState("");
@@ -6594,11 +6599,20 @@ export default function YouTubePlaylistPlayer() {
 
   // Reset menu quadrant mode when side menu closes
   useEffect(() => {
-    if (!showSideMenu) {
+    if (!showSideMenu && !showUnifiedPanel) {
       setMenuQuadrantMode(false);
       setPlayerQuadrantMode(false);
     }
-  }, [showSideMenu]);
+  }, [showSideMenu, showUnifiedPanel]);
+  
+  // Set player quadrant mode - DISABLED (we want left half, not quarter mode)
+  // Keep playerQuadrantMode false so player stays in left half mode
+  useEffect(() => {
+    // Don't activate quadrant mode - we want left half splitscreen, not quarter
+    if (!showUnifiedPanel && !showSideMenu) {
+      setPlayerQuadrantMode(false);
+    }
+  }, [showUnifiedPanel, showSideMenu]);
 
   // Debug player quadrant mode changes
   useEffect(() => {
@@ -7977,7 +7991,51 @@ export default function YouTubePlaylistPlayer() {
       )}
       
       {/* Rest of UI */}
-      <div className="h-screen w-screen bg-black relative overflow-hidden flex font-sans">
+      <div 
+        className="h-screen w-screen bg-black relative overflow-hidden flex font-sans"
+        style={{ pointerEvents: debugClickMode ? 'auto' : 'none' }}
+        onClick={(e) => {
+          if (debugClickMode) {
+            const target = e.target;
+            const path = [];
+            let current = target;
+            while (current && current !== document.body) {
+              const styles = window.getComputedStyle(current);
+              path.push({
+                tag: current.tagName,
+                id: current.id,
+                className: current.className,
+                zIndex: styles.zIndex,
+                pointerEvents: styles.pointerEvents,
+                position: styles.position,
+                display: styles.display,
+                visibility: styles.visibility,
+                rect: current.getBoundingClientRect()
+              });
+              current = current.parentElement;
+            }
+            console.log('=== CLICK DEBUG ===');
+            console.log('Clicked element:', target);
+            console.log('Element path (from clicked to body):', path);
+            console.log('Click coordinates:', { x: e.clientX, y: e.clientY });
+            console.log('==================');
+            
+            // Visual feedback
+            const highlight = document.createElement('div');
+            highlight.style.position = 'fixed';
+            highlight.style.left = `${e.clientX - 10}px`;
+            highlight.style.top = `${e.clientY - 10}px`;
+            highlight.style.width = '20px';
+            highlight.style.height = '20px';
+            highlight.style.border = '3px solid red';
+            highlight.style.borderRadius = '50%';
+            highlight.style.pointerEvents = 'none';
+            highlight.style.zIndex = '99999';
+            document.body.appendChild(highlight);
+            setTimeout(() => highlight.remove(), 1000);
+          }
+        }}
+      >
         {/* Secondary player container - ALWAYS RENDER (NO CONDITIONS) - position and visibility with CSS only */}
         {/* This prevents React from EVER trying to unmount it - container is permanent in DOM */}
       <div 
@@ -8062,9 +8120,11 @@ export default function YouTubePlaylistPlayer() {
           position: 'absolute',
           left: '0%',
           top: quarterSplitscreenMode ? '0%' : '10.118918918918919%',
-          width: quarterSplitscreenMode ? '50%' : showSideMenu ? '50%' : '100.25%',
-          height: quarterSplitscreenMode ? '100%' : showSideMenu ? '89.85945945945946%' : '89.77297297297298%',
-          zIndex: 1
+          width: quarterSplitscreenMode ? '50%' : (showSideMenu || showUnifiedPanel) ? '50%' : '100.25%',
+          height: quarterSplitscreenMode ? '100%' : (showSideMenu || showUnifiedPanel) ? '89.85945945945946%' : '89.77297297297298%',
+          zIndex: 1,
+          pointerEvents: 'auto', // Allow player to be clickable
+          overflow: 'hidden' // Prevent player from extending beyond its bounds
         }}
       >
         {/* Quarter splitscreen mode: two players in left quadrants */}
@@ -8268,29 +8328,30 @@ export default function YouTubePlaylistPlayer() {
           (
             /* Show standard player layout in all modes */
             <div 
-              className={`relative w-full h-full transition-all duration-500 ease-in-out ${
-                playerQuadrantMode && showSideMenu && !quarterSplitscreenMode ? 'flex flex-col' : ''
-              }`}
+              className={`relative w-full h-full transition-all duration-500 ease-in-out`}
             >
-              {/* Radial Menu - only visible in quadrant mode */}
+              {/* Radial Menu - DISABLED */}
+              {false && (
               <div 
                 className={`relative transition-all duration-500 ease-in-out ${
-                  playerQuadrantMode && showSideMenu && !quarterSplitscreenMode ? 'h-1/2 flex-shrink-0' : 'h-0 hidden'
+                  playerQuadrantMode && (showSideMenu || showUnifiedPanel) && !quarterSplitscreenMode ? 'h-1/2 flex-shrink-0' : 'h-0 hidden'
                 }`}
                 style={{
                   overflow: 'visible' // Allow menu to be positioned outside container
                 }}
               >
-                {playerQuadrantMode && showSideMenu && !quarterSplitscreenMode && (
+                {playerQuadrantMode && (showSideMenu || showUnifiedPanel) && !quarterSplitscreenMode && (
                   <RadialMenu onScrollRef={radialMenuScrollRef} playlists={playlists} />
                 )}
               </div>
-              {/* Player container - always in same position, just changes height */}
+              )}
+              {/* Player container - always in same position, full height for left half mode */}
               <div 
                 ref={playerContainerRef} 
                 className="relative w-full transition-all duration-500 ease-in-out"
                 style={{
-                  height: playerQuadrantMode && showSideMenu && !quarterSplitscreenMode ? '50%' : '100%'
+                  height: '100%', // Always full height - player takes left half, not quarter
+                  pointerEvents: 'auto' // Ensure player is clickable for pause/play
                 }}
               >
                 {/* YouTube player using react-youtube - handles lifecycle better */}
@@ -8368,34 +8429,432 @@ export default function YouTubePlaylistPlayer() {
         )}
       </div>
       
+      {/* UnifiedPanel - Replaces side menu, controlled by showUnifiedPanel */}
+      
       {/* Right side container - menu and secondary player (when in playerQuadrantMode with 2 players) */}
       {/* ALWAYS render to prevent React unmount conflicts - control visibility with CSS */}
       <div 
         className="transition-all duration-500 ease-in-out"
         style={{
           position: 'absolute',
-          right: showSideMenu ? '0%' : '-50%',
-          top: '0%',
-          width: showSideMenu ? '50%' : '0%',
-          height: '100%',
-          zIndex: 5
+          right: (showUnifiedPanel || showSideMenu) ? '0%' : '-50%',
+          top: quarterSplitscreenMode ? '0%' : (showUnifiedPanel || showSideMenu) ? '200px' : '0%', // Start below PlayerController (200px height)
+          width: (showUnifiedPanel || showSideMenu) ? '50%' : '0%',
+          height: quarterSplitscreenMode ? '100%' : (showUnifiedPanel || showSideMenu) ? 'calc(100% - 200px)' : '100%', // Adjust height to account for PlayerController
+          zIndex: 100, // Increased to ensure it's above PlayerController
+          pointerEvents: (showUnifiedPanel || showSideMenu) ? 'auto' : 'none', // Ensure clicks work when visible
+          overflow: 'hidden' // Prevent content from extending beyond bounds
         }}
       >
-        {/* Menu container */}
+        {/* Navigation Bar Container - Fixed at top, 40px height */}
+        {(showUnifiedPanel || showSideMenu) && !quarterSplitscreenMode && (
+          <div 
+            style={{ 
+              position: 'absolute',
+              top: '0px',
+              left: '0px',
+              right: '0px',
+              height: '40px',
+              zIndex: 102,
+              pointerEvents: 'auto',
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              backdropFilter: 'blur(10px)',
+              display: 'flex',
+              alignItems: 'center',
+              paddingLeft: '16px',
+              paddingRight: '16px',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+            }}
+          >
+            {/* Navigation Tabs - UnifiedPanel */}
+            {showUnifiedPanel && !showSideMenu && unifiedPanelActiveTab !== 'videos' && (
+              <div className="flex gap-2" style={{ pointerEvents: 'auto', width: '100%', alignItems: 'center' }}>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setUnifiedPanelActiveTab('videos');
+                  setShowUnifiedPanel(false);
+                  setShowSideMenu('videos');
+                  setSideMenuPlaylistIndex(currentPlaylistIndex);
+                  setVideoFilter(chronologicalFilter);
+                }}
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  unifiedPanelActiveTab === 'videos' && showSideMenu === 'videos'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                Videos
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setUnifiedPanelActiveTab('content');
+                  setShowUnifiedPanel(true);
+                  setShowSideMenu(null);
+                }}
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  showUnifiedPanel && unifiedPanelActiveTab === 'content'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                Content
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setUnifiedPanelActiveTab('creative');
+                  setShowUnifiedPanel(true);
+                  setShowSideMenu(null);
+                }}
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  showUnifiedPanel && unifiedPanelActiveTab === 'creative'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                Creative
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setUnifiedPanelActiveTab('support');
+                  setShowUnifiedPanel(true);
+                  setShowSideMenu(null);
+                }}
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  showUnifiedPanel && unifiedPanelActiveTab === 'support'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                Support
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setUnifiedPanelActiveTab('playlist');
+                  setShowUnifiedPanel(true);
+                  setShowSideMenu(null);
+                }}
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  showUnifiedPanel && unifiedPanelActiveTab === 'playlist'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                Playlist
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setUnifiedPanelActiveTab('video');
+                  setShowUnifiedPanel(true);
+                  setShowSideMenu(null);
+                }}
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  showUnifiedPanel && unifiedPanelActiveTab === 'video'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                Video
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setUnifiedPanelActiveTab('settings');
+                  setShowUnifiedPanel(true);
+                  setShowSideMenu(null);
+                }}
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  showUnifiedPanel && unifiedPanelActiveTab === 'settings'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                Settings
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setUnifiedPanelActiveTab('history');
+                  setShowUnifiedPanel(true);
+                  setShowSideMenu(null);
+                }}
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  showUnifiedPanel && unifiedPanelActiveTab === 'history'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                History
+              </button>
+            </div>
+            )}
+            {/* Navigation Tabs - Videos Menu */}
+            {((showSideMenu === 'videos' && unifiedPanelActiveTab === 'videos') || (showSideMenu && !showUnifiedPanel)) && (
+              <div className="flex gap-2" style={{ pointerEvents: 'auto', width: '100%', alignItems: 'center' }}>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setUnifiedPanelActiveTab('videos');
+                  setShowUnifiedPanel(false);
+                  setShowSideMenu('videos');
+                  setSideMenuPlaylistIndex(currentPlaylistIndex);
+                  setVideoFilter(chronologicalFilter);
+                }}
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  unifiedPanelActiveTab === 'videos' && showSideMenu === 'videos'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                Videos
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setUnifiedPanelActiveTab('content');
+                  setShowUnifiedPanel(true);
+                  setShowSideMenu(null);
+                }}
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  showUnifiedPanel && unifiedPanelActiveTab === 'content'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                Content
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setUnifiedPanelActiveTab('creative');
+                  setShowUnifiedPanel(true);
+                  setShowSideMenu(null);
+                }}
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  showUnifiedPanel && unifiedPanelActiveTab === 'creative'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                Creative
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setUnifiedPanelActiveTab('support');
+                  setShowUnifiedPanel(true);
+                  setShowSideMenu(null);
+                }}
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  showUnifiedPanel && unifiedPanelActiveTab === 'support'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                Support
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setUnifiedPanelActiveTab('playlist');
+                  setShowUnifiedPanel(true);
+                  setShowSideMenu(null);
+                }}
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  showUnifiedPanel && unifiedPanelActiveTab === 'playlist'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                Playlist
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setUnifiedPanelActiveTab('video');
+                  setShowUnifiedPanel(true);
+                  setShowSideMenu(null);
+                }}
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  showUnifiedPanel && unifiedPanelActiveTab === 'video'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                Video
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setUnifiedPanelActiveTab('settings');
+                  setShowUnifiedPanel(true);
+                  setShowSideMenu(null);
+                }}
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  showUnifiedPanel && unifiedPanelActiveTab === 'settings'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                Settings
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setUnifiedPanelActiveTab('history');
+                  setShowUnifiedPanel(true);
+                  setShowSideMenu(null);
+                }}
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                  showUnifiedPanel && unifiedPanelActiveTab === 'history'
+                    ? 'bg-sky-600 text-white'
+                    : 'bg-white/10 text-white/80 hover:bg-white/20'
+                }`}
+              >
+                History
+              </button>
+            </div>
+            )}
+          </div>
+        )}
+        
+        {/* Scrollable Content Container - Starts below nav bar (40px) */}
         <div 
-          className={`transition-all duration-500 ease-in-out backdrop-blur-sm overflow-y-auto ${showSideMenu ? (
+          className={`transition-all duration-500 ease-in-out overflow-y-auto ${(showUnifiedPanel || showSideMenu) ? (
             playerQuadrantMode && secondaryPlayerVideoId && quarterSplitscreenMode ? 'w-full absolute top-0 right-0 h-1/2' : 
-            menuQuadrantMode ? 'w-full absolute bottom-0 right-0 h-1/2' : 'w-full h-screen'
+            menuQuadrantMode ? 'w-full absolute bottom-0 right-0 h-1/2' : 'w-full h-full'
           ) : 'w-0'}`}
           style={{ 
-            backgroundColor: showSideMenu ? averageColor : 'transparent'
+            backgroundColor: 'transparent',
+            zIndex: 100,
+            pointerEvents: 'auto',
+            position: 'absolute',
+            top: (showUnifiedPanel || showSideMenu) && !quarterSplitscreenMode ? '40px' : '0px',
+            left: '0px',
+            right: '0px',
+            height: (showUnifiedPanel || showSideMenu) && !quarterSplitscreenMode ? 'calc(100% - 40px)' : '100%',
+            overflow: 'auto',
+            boxSizing: 'border-box'
           }}
         >
-        {showSideMenu && (
-          <div className={`p-4 relative ${menuQuadrantMode ? 'pt-4' : 'pt-20'}`}>
+          {/* Measurement Ruler - Red lines with pixel measurements */}
+          {(showUnifiedPanel || showSideMenu) && !quarterSplitscreenMode && (
+            <div 
+              style={{
+                position: 'absolute',
+                top: '0px',
+                left: '0px',
+                right: '0px',
+                height: '200px',
+                pointerEvents: 'none',
+                zIndex: 200,
+                border: '1px dashed red',
+                backgroundColor: 'rgba(255, 0, 0, 0.05)'
+              }}
+            >
+              {/* Measurement lines every 10px */}
+              {Array.from({ length: 21 }, (_, i) => i * 10).map((px) => (
+                <div
+                  key={px}
+                  style={{
+                    position: 'absolute',
+                    top: `${px}px`,
+                    left: '0px',
+                    width: '100%',
+                    height: '1px',
+                    backgroundColor: 'red',
+                    opacity: px % 50 === 0 ? 1 : 0.5, // Thicker lines every 50px
+                    zIndex: 201,
+                    pointerEvents: 'none'
+                  }}
+                >
+                  <span
+                    style={{
+                      position: 'absolute',
+                      left: '10px',
+                      top: '-8px',
+                      color: 'red',
+                      fontSize: '10px',
+                      fontWeight: 'bold',
+                      backgroundColor: 'white',
+                      padding: '0 2px',
+                      fontFamily: 'monospace'
+                    }}
+                  >
+                    {px}px
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        {/* UnifiedPanel - replaces side menu when showUnifiedPanel is true and not on Videos tab */}
+        {showUnifiedPanel && !showSideMenu && unifiedPanelActiveTab !== 'videos' && (
+          <div className={`p-4 relative`} style={{ height: '100%', overflow: 'auto', paddingTop: '0px' }}>
+            <UnifiedPanel 
+              viewMode="half"
+              activeTab={unifiedPanelActiveTab}
+              onTabChange={setUnifiedPanelActiveTab}
+              showNavBar={false}
+            />
+          </div>
+        )}
+        {/* Traditional side menu - show when Videos tab is active OR when showSideMenu is set directly */}
+        {((showSideMenu === 'videos' && unifiedPanelActiveTab === 'videos') || (showSideMenu && !showUnifiedPanel)) && (
+          <div 
+            className={`p-4 relative ${menuQuadrantMode ? 'pt-4' : 'pt-20'}`} 
+            style={{ 
+              pointerEvents: 'none', // Container doesn't block - children handle their own clicks
+              zIndex: 102, // Higher than parent containers
+              position: 'relative',
+              height: '100%',
+              maxHeight: '100%',
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              isolation: 'isolate', // Create new stacking context
+              backgroundColor: 'transparent', // Ensure no background blocking
+              paddingTop: '50px' // Add padding to account for fixed nav bar (bottom of nav bar is at 50px)
+            }}
+          >
             {showSideMenu === 'playlists' && (
               <>
-                <div className="sticky top-0 bg-black/80 backdrop-blur-sm z-30 pt-4 -mx-4 px-4 pb-2">
+                <div className="sticky top-0 bg-black/80 backdrop-blur-sm z-30 pt-4 -mx-4 px-4 pb-2" style={{ pointerEvents: 'auto' }}>
                   <div className="flex justify-end gap-2 mb-4">
                   <button onClick={() => { setSideMenuPlaylistIndex(currentPlaylistIndex); setVideoFilter('all'); setShowSideMenu('videos'); }} className="text-white bg-white/10 hover:bg-white/20 p-2 rounded-full"><ChevronRight size={24} /></button>
                   <button onClick={() => setShowSideMenu(null)} className="text-white bg-white/10 hover:bg-white/20 p-2 rounded-full"><X size={24} /></button>
@@ -8970,16 +9429,17 @@ export default function YouTubePlaylistPlayer() {
               const allVideos = getSideMenuVideos(displayedPlaylist);
               const visibleVideos = allVideos.slice(0, visibleCount);
               return (
-                <>
-                  <div className="sticky top-0 z-20 bg-black/80 backdrop-blur-sm pt-4 -mx-4 px-4 pb-4">
-                    <div className="flex justify-between items-center mb-4">
-                      <div className="flex gap-2">
+                <div style={{ pointerEvents: 'auto', position: 'relative', zIndex: 103 }}>
+                  <div className="bg-transparent pt-4 -mx-4 px-4 pb-4" style={{ pointerEvents: 'auto', position: 'relative' }}>
+                    <div className="flex justify-between items-center mb-4" style={{ pointerEvents: 'auto' }}>
+                      <div className="flex gap-2" style={{ pointerEvents: 'auto' }}>
                         {isTauri && !displayedPlaylist.isColoredFolder && (
                           <>
                             <button 
                               onClick={() => handleFetchPlaylistMetadata(displayedPlaylist.id)}
                               className="text-white bg-blue-500/80 hover:bg-blue-500 p-2 rounded-full"
                               title="Fetch metadata for all videos (ONE-TIME - stored permanently in database)"
+                              style={{ pointerEvents: 'auto' }}
                             >
                               <Database size={20} />
                             </button>
@@ -8987,6 +9447,7 @@ export default function YouTubePlaylistPlayer() {
                               onClick={() => handleAddLocalVideosToPlaylist(displayedPlaylist.id)}
                               className="text-white bg-purple-500/80 hover:bg-purple-500 p-2 rounded-full"
                               title="Add local video files (.mp4, .webm) to this playlist"
+                              style={{ pointerEvents: 'auto' }}
                             >
                               <Folder size={20} />
                             </button>
@@ -8994,18 +9455,20 @@ export default function YouTubePlaylistPlayer() {
                               onClick={() => handleOverwritePlaylist(displayedPlaylist.id)}
                               className="text-white bg-orange-500/80 hover:bg-orange-500 p-2 rounded-full"
                               title="Overwrite playlist from file"
+                              style={{ pointerEvents: 'auto' }}
                             >
                               <Upload size={20} />
                             </button>
                           </>
                         )}
                       </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => setShowSideMenu('playlists')} className="text-white bg-white/10 hover:bg-white/20 p-2 rounded-full"><ChevronLeft size={24} /></button>
-                        <button onClick={() => setShowSideMenu(null)} className="text-white bg-white/10 hover:bg-white/20 p-2 rounded-full"><X size={24} /></button>
+                      <div className="flex gap-2" style={{ pointerEvents: 'auto' }}>
+                        <button onClick={() => setShowSideMenu('playlists')} className="text-white bg-white/10 hover:bg-white/20 p-2 rounded-full" style={{ pointerEvents: 'auto' }}><ChevronLeft size={24} /></button>
+                        <button onClick={() => setShowSideMenu(null)} className="text-white bg-white/10 hover:bg-white/20 p-2 rounded-full" style={{ pointerEvents: 'auto' }}><X size={24} /></button>
                       </div>
                     </div>
-                    <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-3 pt-0">
+                    {/* Navigation tabs removed - now in separate nav bar container above */}
+                    <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-3 pt-2">
                       {renamingGroup === videoFilter ? (
                         <input type="text" value={groupRenameInput} onChange={e => setGroupRenameInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleRenameGroup(videoFilter) }} onBlur={() => handleRenameGroup(videoFilter)} className="bg-transparent border-b-2 border-blue-500 text-2xl font-bold text-white focus:outline-none" autoFocus/>
                       ) : (
@@ -9082,7 +9545,7 @@ export default function YouTubePlaylistPlayer() {
                       </button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" style={{ pointerEvents: 'auto', position: 'relative', zIndex: 103 }}>
                     {visibleVideos.map(video => {
                       if (!video) return null;
                       const originalIndex = displayedPlaylist.videos.findIndex(v => v.id === video.id);
@@ -9091,7 +9554,17 @@ export default function YouTubePlaylistPlayer() {
                       const isWatched = progress >= duration * 0.95;
                       const progressPercent = isWatched ? 100 : Math.min(100, (progress / duration) * 100);
                       return (
-                        <div key={`${video.id}-${thumbnailUpdateTrigger}`} draggable onDragStart={() => setDraggingVideoId(video.id)} className="relative group">
+                        <div 
+                          key={`${video.id}-${thumbnailUpdateTrigger}`} 
+                          draggable 
+                          onDragStart={() => setDraggingVideoId(video.id)} 
+                          className="relative group"
+                          style={{ 
+                            pointerEvents: 'auto', 
+                            zIndex: 103, // Higher than container
+                            position: 'relative'
+                          }}
+                        >
                           {(() => {
                             const pendingColor = bulkMode ? pendingBulkAssignments.get(video.id) : null;
                             const currentColor = getVideoGroupColor(displayedPlaylist, video.id);
@@ -9105,6 +9578,11 @@ export default function YouTubePlaylistPlayer() {
                             }} 
                             onContextMenu={(e) => handleVideoContextMenu(e, video)} 
                             className={`w-full text-left ${borderColor ? `ring-2 ${borderColor} rounded-lg` : ''} ${pendingColor ? 'ring-4' : ''}`}
+                            style={{ 
+                              pointerEvents: 'auto', 
+                              zIndex: 103, // Higher than container
+                              position: 'relative'
+                            }}
                           >
                             <div className="aspect-video bg-gray-800 rounded-lg overflow-hidden relative group/thumbnail">
                               <ThumbnailImage 
@@ -9350,7 +9828,7 @@ export default function YouTubePlaylistPlayer() {
                     })}
                   </div>
                   {visibleVideos.length < allVideos.length && (<div className="mt-4 text-center"><button onClick={handleShowMore} className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Show More Videos</button></div>)}
-                </>
+                </div>
               )
             })()}
             {showSideMenu === 'history' && (
@@ -9481,11 +9959,10 @@ export default function YouTubePlaylistPlayer() {
               </>
             )}
           </div>
-        )}
         </div>
-        
-        {/* Secondary player is now rendered at root level to prevent unmount issues */}
       </div>
+      
+      {/* Secondary player is now rendered at root level to prevent unmount issues */}
 
       {/* Context Menu */}
       {contextMenuVideo && (
@@ -9918,6 +10395,67 @@ export default function YouTubePlaylistPlayer() {
       )}
       
       
+      {/* Debug Toggle Button */}
+      {debugClickMode && (
+        <div className="fixed bottom-4 right-4 z-[99999] bg-red-500 text-white p-4 rounded-lg shadow-lg">
+          <div className="font-bold mb-2">DEBUG MODE ACTIVE</div>
+          <div className="text-sm mb-2">Click anywhere to see element info in console</div>
+          <button 
+            onClick={() => setDebugClickMode(false)}
+            className="bg-white text-red-500 px-4 py-2 rounded font-bold"
+          >
+            Disable Debug
+          </button>
+        </div>
+      )}
+      {!debugClickMode && (
+        <button 
+          onClick={() => setDebugClickMode(true)}
+          className="fixed bottom-4 right-4 z-[99999] bg-blue-500 text-white p-2 rounded shadow-lg"
+          title="Enable click debug mode"
+        >
+          🔍 Debug Clicks
+        </button>
+      )}
+      
+      {/* PlayerController - Replaces top playlist and video menus */}
+      <div className="fixed top-0 left-0 right-0 z-50 pointer-events-none" style={{ height: 'auto', maxHeight: '200px', overflow: 'hidden' }}>
+        <div className="w-full h-full flex justify-center pointer-events-auto" style={{ maxHeight: '200px', overflow: 'hidden' }}>
+          <div className="w-full max-w-5xl" style={{ maxHeight: '200px', overflow: 'hidden' }}>
+            <PlayerController 
+              playlists={playlists.map(p => ({
+                title: p.name,
+                image: p.thumbnail || (p.representativeVideoId ? `https://img.youtube.com/vi/${p.representativeVideoId}/hqdefault.jpg` : 'https://picsum.photos/seed/playlist/800/600')
+              }))}
+              currentPlaylistIndex={currentPlaylistIndex}
+              currentVideoIndex={currentVideoIndex}
+              currentVideoTitle={currentVideoTitle}
+              videoAuthorName={videoAuthorName}
+              videoViewCount={videoViewCount}
+              onPlaylistNext={goToNextPlaylist}
+              onPlaylistPrev={goToPreviousPlaylist}
+              onVideoNext={goToNextVideo}
+              onVideoPrev={goToPreviousVideo}
+              onGridToggle={() => {
+                if (showUnifiedPanel) {
+                  setShowUnifiedPanel(false);
+                  setShowSideMenu('videos');
+                  setSideMenuPlaylistIndex(currentPlaylistIndex);
+                  setVideoFilter(chronologicalFilter);
+                } else {
+                  setShowSideMenu(showSideMenu === 'videos' ? null : (setSideMenuPlaylistIndex(currentPlaylistIndex), setVideoFilter(chronologicalFilter), 'videos'));
+                }
+              }}
+              onSearchToggle={() => setShowSideMenu(showSideMenu === 'search' ? null : 'search')}
+              onHistoryToggle={() => setShowSideMenu(showSideMenu === 'history' ? null : 'history')}
+              onShuffle={() => startNewShuffle()}
+            />
+          </div>
+        </div>
+      </div>
+      
+      {/* Legacy Top Menu - REMOVED - Now using PlayerController only */}
+      {false && (
       <div className="fixed top-4 left-0 right-0 z-20 flex justify-center items-start gap-4 pointer-events-none">
         {/* Top Playlist Menu - Part of expanded hitbox */}
         <div 
@@ -9938,7 +10476,8 @@ export default function YouTubePlaylistPlayer() {
             <span className="font-semibold text-sm w-48 truncate text-center">{currentPlaylist.name || "..."}</span>
             <button onClick={goToNextPlaylist} className="p-1 hover:bg-white/20 rounded-md"><ChevronRight size={20} /></button>
             <button onClick={() => setShowSideMenu(showSideMenu === 'playlists' ? null : 'playlists')} className="p-2 rounded-full bg-white/10 hover:bg-white/20"><Grid3X3 size={16} /></button>
-            {(showSideMenu || quarterSplitscreenMode) && (
+            {/* Radial Menu Hover Activation - DISABLED */}
+            {false && (showSideMenu || quarterSplitscreenMode) && (
               <div
                 className="relative"
                 onMouseEnter={() => {
@@ -10049,7 +10588,7 @@ export default function YouTubePlaylistPlayer() {
                     </button>
                   )}
                 </div>
-              ))}
+                ))}
           </div>
           )}
         </div>
@@ -10260,6 +10799,8 @@ export default function YouTubePlaylistPlayer() {
           </div>
         </div>
       </div>
+      )}
+      {/* End of Legacy Top Menu - Both playlist and video menus removed */}
 
       {/* Merge Colored Folder Modal */}
       {showMergeColoredFolderModal && mergeColoredFolder && (

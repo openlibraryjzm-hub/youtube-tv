@@ -14,20 +14,32 @@ git add .
 # AI analyzes all changes since last push and updates this message
 $tempFile = "commit-msg-temp.txt"
 $commitMessage = @"
-[AI] Botched attempt to integrate radial menu into main app
+[AI] Created comprehensive project context summary for reorganization
 
-This was a day where there was a botched attempt to integrate the radial menu into the main app. Multiple failed attempts were made to fix:
-- Radial menu scroll snap back issues
-- Player area mapper save functionality  
-- Radial menu dragging functionality
+Created PROJECT-CONTEXT-SUMMARY.md - a complete snapshot of project state, challenges, and architectural concerns. This document captures:
 
-None of the fixes worked as intended. The code was reverted back to original state in most cases.
+- Full project understanding (architecture, code structure, state management)
+- Current challenges with implementing new pages/features
+- Integration difficulties (RadialMenu, unified frontend)
+- Memory/context issues causing Cursor crashes
+- Technical debt and code organization concerns
+- Recommendations for short/medium/long-term reorganization
+
+This document is intended to help with project reorganization and serve as context for future development sessions.
+
+Files Created:
+- PROJECT-CONTEXT-SUMMARY.md: Comprehensive 630-line context document
+- PROJECT-SUMMARY.md: User-focused project overview
+- FRONTEND-INTEGRATION-PLAN.md: Integration plan for unified frontend
+- INTEGRATION-START.md: Initial integration notes
 
 Files Modified:
-- app/components/RadialMenu.jsx: Various attempted fixes that didn't work
-- app/components/PlayerAreaMapper.jsx: Attempted save functionality fixes
+- app/page.jsx: Ongoing integration attempts (unified frontend)
+- app/components/RadialMenu.jsx: Previous integration attempts
+- app/components/PlayerAreaMapper.jsx: Save functionality work
+- app/components/unified/: New unified frontend components
 
-Status: Issues remain unresolved. Need to take a different approach.
+Status: Project working but needs reorganization. Context document created to guide future refactoring efforts.
 "@
 
 # Write to temp file
